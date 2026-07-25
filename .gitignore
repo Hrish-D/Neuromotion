@@ -1,0 +1,55 @@
+# macOS
+.DS_Store
+
+# Xcode user state and generated products
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.xcarchive
+
+# Swift Package Manager
+.build/
+
+# Temporary and editor files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.#*
+
+# Facework participant/session exports and research data
+FacialMotionBaselineData/
+ParticipantSessions/
+ParticipantData/
+ResearchData/
+research-data/
+Exports/
+exports/
+
+# Raw and annotated facial images generated during capture/validation
+ValidationImages/
+CapturedImages/
+RawFacialImages/
+AnnotatedFacialImages/
+validation_*.jpg
+validation_*.jpeg
+validation_*.png
+raw_face_*.jpg
+raw_face_*.jpeg
+annotated_face_*.jpg
+annotated_face_*.jpeg
+
+# Local logs that may contain participant or session information
+*.log
+Logs/
+LocalLogs/
+participant_*.txt
+session_*.txt
+
+# Synthetic, non-identifiable fixtures under test directories remain trackable.
+!FaceworkTests/Fixtures/
+!FaceworkTests/Fixtures/**
+!FaceworkUITests/Fixtures/
+!FaceworkUITests/Fixtures/**
