@@ -41,8 +41,9 @@ movement tasks, session summary, and export.
   interval.
 - `HoldValidator`, `FrameLogWriter`, `SessionSummaryViewModel`, `Logger`, and
   `DateFormatting` are not integrated into the active workflow.
-- The unit and UI tests are Xcode-generated placeholders and contain no
-  scientific assertions.
+- `CaptureSessionViewModel` eagerly constructs an `ARSession`; its two direct
+  session-summary characterization tests therefore skip in the simulator to
+  avoid an ARKit abort and remain device checks.
 
 ## Known scientific limitations
 
@@ -63,15 +64,22 @@ movement tasks, session summary, and export.
   analysis.
 
 These limitations describe the current baseline and are intentionally
-unchanged by the repository-preparation phase.
+unchanged by the characterization-test phase.
 
 ## Test status
 
-The application compiles, but automated coverage is effectively absent.
-`FaceworkTests` has one empty Swift Testing test. UI tests only launch the app
-and record the default launch/performance behavior. Pure mathematical and
-non-camera tests can be added and run in an iOS simulator. TrueDepth behavior
-cannot be meaningfully tested in the simulator.
+The XCTest characterization suite uses deterministic synthetic fixtures for
+baseline calibration, signal preprocessing, feature extraction, velocity,
+symmetry, quality-control boundaries, repetition/task analysis, current model
+round trips, and JSON/CSV/manifest exports. Minimal UI coverage verifies launch,
+home/setup navigation, setup-field gating, and the simulator's unsupported
+TrueDepth readiness state. TrueDepth capture remains outside simulator scope.
+
+`AppConfiguration` still conforms to `Codable` while all immutable properties
+have declaration-time defaults, producing synthesized-decoding warnings that
+those values cannot be overwritten. Repository search found no current
+`AppConfiguration` encode/decode call sites, but production conformance was
+left unchanged in this behavior-preservation phase.
 
 ## Device-validation requirements
 
@@ -91,10 +99,7 @@ outside version control.
 
 ## Next implementation phase
 
-The next phase should establish deterministic synthetic test fixtures and
-tests for baseline, normalization, task signals, timing, velocity, symmetry,
-QC, summary aggregation, CSV output, and ZIP contents. After those characterize
-the current behavior, address atomic AR-frame sampling, actor-safe state
-updates, real readiness/framing measurements, scientifically defined landmark
-or blend-shape outcomes, contiguous hold/rest enforcement, exact peak-image
-linkage, and asynchronous hardened export.
+The next implementation phase should add explicit application-build,
+raw-schema, analysis-algorithm, capture-protocol, mesh, and landmark version
+identity without changing capture or analysis behavior. Atomic AR-frame
+sampling and actor-safe state updates remain later phases.

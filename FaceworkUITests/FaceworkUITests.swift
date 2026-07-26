@@ -8,34 +8,75 @@
 import XCTest
 
 final class FaceworkUITests: XCTestCase {
-
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testHomeScreenAppearsAfterLaunch() {
         let app = XCUIApplication()
         app.launch()
-
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        XCTAssertTrue(app.staticTexts["Facial Motion Baseline"].waitForExistence(timeout: 5))
     }
 
     @MainActor
-    func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
-        measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+    func testSessionSetupCanBeOpened() {
+        let app = launchAndOpenSetup()
+        XCTAssertTrue(app.navigationBars["New Session Setup"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testRequiredFieldsControlContinueAvailability() {
+        let app = launchAndOpenSetup()
+        let continueButton = app.buttons["Continue"]
+        XCTAssertTrue(continueButton.exists)
+        XCTAssertFalse(continueButton.isEnabled)
+
+        app.textFields["Study ID"].tap()
+        app.textFields["Study ID"].typeText("SYNTHETIC-STUDY")
+        app.textFields["Participant ID"].tap()
+        app.textFields["Participant ID"].typeText("SYNTHETIC-001")
+
+        XCTAssertTrue(continueButton.isEnabled)
+    }
+
+    @MainActor
+    func testSimulatorReadinessReportsUnsupportedTrueDepth() {
+        let app = launchAndOpenSetup()
+        addCameraPermissionHandler(to: app)
+
+        app.textFields["Study ID"].tap()
+        app.textFields["Study ID"].typeText("SYNTHETIC-STUDY")
+        app.textFields["Participant ID"].tap()
+        app.textFields["Participant ID"].typeText("SYNTHETIC-001")
+        app.buttons["Continue"].tap()
+
+        XCTAssertTrue(app.staticTexts["Device Readiness"].waitForExistence(timeout: 5))
+        let unsupportedReason = app.staticTexts
+            .containing(NSPredicate(format: "label CONTAINS %@", "Face tracking is not supported"))
+            .firstMatch
+        XCTAssertTrue(unsupportedReason.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["Proceed to Neutral Baseline"].isEnabled)
+    }
+
+    @MainActor
+    private func launchAndOpenSetup() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Facial Motion Baseline"].waitForExistence(timeout: 5))
+        app.staticTexts["Start New Session"].tap()
+        return app
+    }
+
+    @MainActor
+    private func addCameraPermissionHandler(to app: XCUIApplication) {
+        addUIInterruptionMonitor(withDescription: "Camera Permission") { alert in
+            if alert.buttons["Don’t Allow"].exists {
+                alert.buttons["Don’t Allow"].tap()
+                return true
+            }
+            return false
         }
+        app.tap()
     }
 }
