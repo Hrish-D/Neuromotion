@@ -87,6 +87,41 @@ final class TaskExecutionViewModel: ObservableObject {
         normalizedValues = normalized
     }
 
+    func appendLiveFrame(
+        collectedObservation: CollectedFaceObservation,
+        baseline: [String: Double],
+        isNeutralPhase: Bool,
+        imageReference: String? = nil
+    ) {
+        let observation = collectedObservation.observation
+        let task: TaskType
+        let repetitionIndex: Int
+
+        switch collectedObservation.mode {
+        case .neutral:
+            task = .neutralRest
+            repetitionIndex = 1
+        case .task(let capturedTask, let capturedRepetitionIndex):
+            task = capturedTask
+            repetitionIndex = capturedRepetitionIndex
+        }
+
+        appendLiveFrame(
+            task: task,
+            repetitionIndex: repetitionIndex,
+            rawBlendshapes: observation.rawBlendshapes,
+            baseline: baseline,
+            pose: observation.headPose ?? HeadPose(yawDegrees: 0, pitchDegrees: 0, rollDegrees: 0),
+            trackingState: collectedObservation.cameraTrackingState,
+            faceCount: observation.visibleFaceCount,
+            faceCenter: observation.faceCenter,
+            faceScale: observation.faceScale,
+            timestamp: observation.sourceTimestamp,
+            isNeutralPhase: isNeutralPhase,
+            imageReference: imageReference
+        )
+    }
+
     func peakFrameCandidate(for task: TaskType) -> PeakFrameCandidate? {
         peakFrameFinder.findPeak(task: task, frames: captureFrames)
     }

@@ -13,6 +13,8 @@ struct TaskExecutionView: View {
     @State private var isCapturing = false
     @State private var holdCountdown: Double = 0
     @State private var latestResult: RepetitionResult?
+    @State private var observationCollector: FaceObservationCollector?
+    @State private var captureTimer: Timer?
     
     let task: TaskType
 
@@ -77,6 +79,8 @@ struct TaskExecutionView: View {
                         .disabled(isCapturing)
 
                         Button("Reset Rep") {
+                            stopCapture()
+                            isCapturing = false
                             taskVM.resetForNextRep()
                             latestResult = nil
                         }
@@ -94,6 +98,7 @@ struct TaskExecutionView: View {
             captureVM?.startTracking()
         }
         .onDisappear {
+            stopCapture()
             captureVM?.stopTracking()
         }
     }
@@ -131,43 +136,49 @@ struct TaskExecutionView: View {
         let sessionFolder = (try? FileManagerService().sessionFolder(participantID: vm.metadata.participantID,
                                                                      sessionID: vm.metadata.sessionID)) ?? URL(fileURLWithPath: NSTemporaryDirectory())
 
+        let collector = FaceObservationCollector(
+            provider: vm.trackingManager,
+            cameraTrackingState: { vm.trackingManager.trackingStateDescription }
+        )
+        observationCollector = collector
+        collector.start(mode: .task(task: task, repetitionIndex: repIndex)) { collectedObservation in
+            let nextFrameIndex = taskVM.nextFrameIndex
+            let validationImageReference: String?
+
+            let validationImageStride = 10
+            let shouldSaveValidationImage = appState.saveValidationImages &&
+                                            nextFrameIndex % validationImageStride == 0
+
+            if shouldSaveValidationImage {
+                let imageName = "validation_\(task.rawValue)_rep_\(repIndex)_frame_\(String(format: "%04d", nextFrameIndex))"
+                let overlay = "\(task.displayName) | rep \(repIndex) | frame \(nextFrameIndex)"
+                validationImageReference = vm.imageCaptureService.saveCurrentCameraImage(
+                    from: vm.trackingManager.session,
+                    named: imageName,
+                    in: sessionFolder,
+                    overlayText: overlay
+                )
+            } else {
+                validationImageReference = nil
+            }
+
+            taskVM.appendLiveFrame(
+                collectedObservation: collectedObservation,
+                baseline: vm.baselineValues,
+                isNeutralPhase: false,
+                imageReference: validationImageReference
+            )
+        }
+
         let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
             MainActor.assumeIsolated {
                 let now = Date()
                 holdCountdown = max(0, end.timeIntervalSince(now) - 1.0)
 
-                let nextFrameIndex = taskVM.nextFrameIndex
-                let validationImageReference: String?
-
-                let validationImageStride = 10
-                let shouldSaveValidationImage = appState.saveValidationImages &&
-                                                nextFrameIndex % validationImageStride == 0
-
-                if shouldSaveValidationImage {
-                    let imageName = "validation_\(task.rawValue)_rep_\(repIndex)_frame_\(String(format: "%04d", nextFrameIndex))"
-                    let overlay = "\(task.displayName) | rep \(repIndex) | frame \(nextFrameIndex)"
-                    validationImageReference = vm.imageCaptureService.saveCurrentCameraImage(from: vm.trackingManager.session,
-                                                                                             named: imageName,
-                                                                                             in: sessionFolder,
-                                                                                             overlayText: overlay)
-                } else {
-                    validationImageReference = nil
-                }
-
-                taskVM.appendLiveFrame(task: task,
-                                       repetitionIndex: repIndex,
-                                       rawBlendshapes: vm.trackingManager.latestBlendshapes,
-                                       baseline: vm.baselineValues,
-                                       pose: vm.trackingManager.latestPose,
-                                       trackingState: vm.trackingManager.trackingStateDescription,
-                                       faceCount: vm.trackingManager.visibleFaceCount,
-                                       faceCenter: vm.trackingManager.faceCenter,
-                                       faceScale: vm.trackingManager.faceScale,
-                                       timestamp: vm.trackingManager.latestTimestamp,
-                                       isNeutralPhase: false,
-                                       imageReference: validationImageReference)
                 if now >= end {
                     timer.invalidate()
+                    captureTimer = nil
+                    observationCollector?.stop()
                     let peakCandidate = taskVM.peakFrameCandidate(for: task)
                     let framesForRep = taskVM.captureFrames
                     let result = taskVM.finalize(task: task,
@@ -199,6 +210,14 @@ struct TaskExecutionView: View {
                 }
             }
         }
+        captureTimer = timer
         RunLoop.current.add(timer, forMode: .common)
+    }
+
+    private func stopCapture() {
+        observationCollector?.stop()
+        observationCollector = nil
+        captureTimer?.invalidate()
+        captureTimer = nil
     }
 }
