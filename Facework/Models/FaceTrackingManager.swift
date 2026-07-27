@@ -10,7 +10,14 @@ import ARKit
 import AVFoundation
 import Combine
 
-final class FaceTrackingManager: NSObject, ObservableObject {
+@MainActor
+protocol FaceObservationProviding: AnyObject {
+    var observations: AnyPublisher<FaceTrackingObservation, Never> { get }
+}
+
+@MainActor
+final class FaceTrackingManager: NSObject, ObservableObject, FaceObservationProviding {
+    // Transitional compatibility state for the timer-driven capture views.
     @Published var latestBlendshapes: [String: Double] = [:]
     @Published var latestPose: HeadPose = HeadPose(yawDegrees: 0, pitchDegrees: 0, rollDegrees: 0)
     @Published var trackingStateDescription: String = "Not Started"
@@ -19,16 +26,27 @@ final class FaceTrackingManager: NSObject, ObservableObject {
     @Published var faceCenter: CGPoint = .zero
     @Published var faceScale: Double = 0
     @Published var latestTimestamp: TimeInterval = 0
-    @Published var currentAnchor: ARFaceAnchor?
+    @Published private(set) var latestObservation: FaceTrackingObservation?
 
-    let session = ARSession()
-    private let coordinator: ARSessionCoordinator
+    var observations: AnyPublisher<FaceTrackingObservation, Never> {
+        observationSubject.eraseToAnyPublisher()
+    }
+
+    private lazy var coordinator: ARSessionCoordinator = {
+        let coordinator = ARSessionCoordinator()
+        coordinator.manager = self
+        return coordinator
+    }()
+    private let observationSubject = PassthroughSubject<FaceTrackingObservation, Never>()
+    private(set) lazy var session: ARSession = {
+        let session = ARSession()
+        session.delegate = coordinator
+        session.delegateQueue = .main
+        return session
+    }()
 
     override init() {
-        coordinator = ARSessionCoordinator()
         super.init()
-        coordinator.manager = self
-        session.delegate = coordinator
     }
 
     func start() {
@@ -47,7 +65,7 @@ final class FaceTrackingManager: NSObject, ObservableObject {
         trackingStateDescription = "Paused"
     }
 
-    func requestCameraPermission(completion: @escaping (Bool) -> Void) {
+    func requestCameraPermission(completion: @escaping @Sendable (Bool) -> Void) {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             completion(true)
@@ -58,35 +76,45 @@ final class FaceTrackingManager: NSObject, ObservableObject {
         }
     }
 
-    func update(anchor: ARFaceAnchor, timestamp: TimeInterval) {
-        currentAnchor = anchor
-        latestTimestamp = timestamp
-        latestBlendshapes = BlendshapeMapper.map(anchor.blendShapes)
-        latestPose = Self.poseFromTransform(anchor.transform)
-        faceIsPresent = true
-        visibleFaceCount = 1
-        faceCenter = CGPoint(x: 0.5, y: 0.5)
-        faceScale = 0.35
-    }
+    func receive(_ observation: FaceTrackingObservation) {
+        switch observation.trackingState {
+        case .tracking:
+            latestTimestamp = observation.sourceTimestamp
+            faceIsPresent = true
+            visibleFaceCount = observation.visibleFaceCount
+            faceCenter = observation.faceCenter
+            faceScale = observation.faceScale
+            latestBlendshapes = observation.rawBlendshapes
+            if let headPose = observation.headPose {
+                latestPose = headPose
+            }
+        case .noFace:
+            latestTimestamp = observation.sourceTimestamp
+            faceIsPresent = false
+            visibleFaceCount = 0
+        case .multipleFaces:
+            visibleFaceCount = observation.visibleFaceCount
+        }
+        trackingStateDescription = observation.trackingState.description
+        latestObservation = observation
 
-    func updateNoFace(timestamp: TimeInterval) {
-        latestTimestamp = timestamp
-        faceIsPresent = false
-        visibleFaceCount = 0
-        currentAnchor = nil
+        observationSubject.send(observation)
     }
 
     static func poseFromTransform(_ transform: simd_float4x4) -> HeadPose {
-        let yawRadians = Double(atan2(transform.columns.0.z, transform.columns.0.x))
-        let pitchRadians = Double(asin(-transform.columns.0.y))
-        let rollRadians = Double(atan2(transform.columns.1.x, transform.columns.1.y))
+        FaceTrackingObservationBuilder.poseFromTransform(transform)
+    }
+}
 
-        let radiansToDegrees = 180.0 / Double.pi
-
-        return HeadPose(
-            yawDegrees: yawRadians * radiansToDegrees,
-            pitchDegrees: pitchRadians * radiansToDegrees,
-            rollDegrees: rollRadians * radiansToDegrees
-        )
+private extension FaceTrackingObservationState {
+    var description: String {
+        switch self {
+        case .tracking:
+            "Tracking"
+        case .noFace:
+            "No face"
+        case .multipleFaces:
+            "Multiple faces detected"
+        }
     }
 }

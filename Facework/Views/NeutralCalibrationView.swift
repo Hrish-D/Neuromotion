@@ -65,26 +65,28 @@ struct NeutralCalibrationView: View {
 
         let end = Date().addingTimeInterval(AppConfiguration.shared.neutralCaptureDuration)
         let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-            let now = Date()
-            secondsRemaining = max(0, end.timeIntervalSince(now))
+            MainActor.assumeIsolated {
+                let now = Date()
+                secondsRemaining = max(0, end.timeIntervalSince(now))
 
-            taskVM.appendLiveFrame(task: .neutralRest,
-                                   repetitionIndex: 1,
-                                   rawBlendshapes: vm.trackingManager.latestBlendshapes,
-                                   baseline: [:],
-                                   pose: vm.trackingManager.latestPose,
-                                   trackingState: vm.trackingManager.trackingStateDescription,
-                                   faceCount: vm.trackingManager.visibleFaceCount,
-                                   faceCenter: vm.trackingManager.faceCenter,
-                                   faceScale: vm.trackingManager.faceScale,
-                                   timestamp: vm.trackingManager.latestTimestamp,
-                                   isNeutralPhase: true)
-            collectedFrames = taskVM.captureFrames
+                taskVM.appendLiveFrame(task: .neutralRest,
+                                       repetitionIndex: 1,
+                                       rawBlendshapes: vm.trackingManager.latestBlendshapes,
+                                       baseline: [:],
+                                       pose: vm.trackingManager.latestPose,
+                                       trackingState: vm.trackingManager.trackingStateDescription,
+                                       faceCount: vm.trackingManager.visibleFaceCount,
+                                       faceCenter: vm.trackingManager.faceCenter,
+                                       faceScale: vm.trackingManager.faceScale,
+                                       timestamp: vm.trackingManager.latestTimestamp,
+                                       isNeutralPhase: true)
+                collectedFrames = taskVM.captureFrames
 
-            if now >= end {
-                timer.invalidate()
-                vm.updateBaseline(frames: collectedFrames)
-                appState.routeStack.append(.taskInstruction(vm.tasks.first!))
+                if now >= end {
+                    timer.invalidate()
+                    vm.updateBaseline(frames: collectedFrames)
+                    appState.routeStack.append(.taskInstruction(vm.tasks.first!))
+                }
             }
         }
         RunLoop.current.add(timer, forMode: .common)

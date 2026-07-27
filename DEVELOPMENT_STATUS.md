@@ -5,6 +5,12 @@
 Facework is a SwiftUI iOS/iPadOS application with an MVVM-style organization.
 `AppState` owns navigation and the active `CaptureSessionViewModel`.
 `FaceTrackingManager` and `ARSessionCoordinator` wrap ARKit face tracking.
+Each relevant AR face-anchor callback now creates one immutable
+`FaceTrackingObservation` containing copied values and publishes it on
+`MainActor` through an explicitly configured main delegate queue.
+Face-anchor removal is handled explicitly and produces an ordered no-face
+observation. ARKit's default one-face tracking limit remains unchanged, so the
+multiple-face callback branch is defensive.
 Processing, quality-control, and export operations are implemented as small
 services and value-type calculators. Session data is held in memory and
 exported to JSON, CSV, validation images, and a ZIP archive in the app's
@@ -66,8 +72,14 @@ movement tasks, session summary, and export.
   exact calculated peak frame.
 - Session-level QC currently treats any non-empty capture as valid for
   analysis.
+- Observation timestamps sample `ARSession.currentFrame.timestamp` once per
+  callback, with `CACurrentMediaTime()` as fallback; they are not timestamps
+  intrinsic to `ARFaceAnchor`.
+- Camera/session tracking status remains separate from face observations and
+  is still consumed by the existing tracking QC compatibility path.
+
 These limitations describe the current baseline and are intentionally
-unchanged by the version-identity phase.
+unchanged by the version-identity and atomic-observation phases.
 
 ## Research-data identity
 
@@ -94,7 +106,11 @@ TrueDepth readiness state. TrueDepth capture remains outside simulator scope.
 Version and migration tests cover bundle fallbacks, centralized research
 versions, deterministic device-information injection, current and legacy
 metadata, malformed-session isolation, and versioned CSV output.
-The suite contains 86 unit-test methods and 5 UI-test methods; two existing
+Atomic-observation tests cover copied callback values, source timestamps,
+dictionary and transform independence, production callback cardinality,
+ordered update/removal/reacquisition delivery, synthetic delivery without
+ARKit, compatibility state, and MainActor publication.
+The suite contains 107 unit-test methods and 5 UI-test methods; two existing
 `CaptureSessionViewModel` checks remain simulator-skipped because that view
 model eagerly constructs `ARSession`.
 
@@ -120,6 +136,6 @@ outside version control.
 
 ## Next implementation phase
 
-The next implementation phase should publish immutable, atomic AR face
-observations with explicit actor-safe delivery while retaining timer-driven
-capture temporarily.
+The next implementation phase should replace timer polling for scientific
+capture with the atomic observation stream. Timers should remain only for
+countdowns and phase transitions.

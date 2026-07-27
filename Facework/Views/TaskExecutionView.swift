@@ -132,69 +132,71 @@ struct TaskExecutionView: View {
                                                                      sessionID: vm.metadata.sessionID)) ?? URL(fileURLWithPath: NSTemporaryDirectory())
 
         let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-            let now = Date()
-            holdCountdown = max(0, end.timeIntervalSince(now) - 1.0)
+            MainActor.assumeIsolated {
+                let now = Date()
+                holdCountdown = max(0, end.timeIntervalSince(now) - 1.0)
 
-            let nextFrameIndex = taskVM.nextFrameIndex
-            let validationImageReference: String?
+                let nextFrameIndex = taskVM.nextFrameIndex
+                let validationImageReference: String?
 
-            let validationImageStride = 10
-            let shouldSaveValidationImage = appState.saveValidationImages &&
-                                            nextFrameIndex % validationImageStride == 0
+                let validationImageStride = 10
+                let shouldSaveValidationImage = appState.saveValidationImages &&
+                                                nextFrameIndex % validationImageStride == 0
 
-            if shouldSaveValidationImage {
-                let imageName = "validation_\(task.rawValue)_rep_\(repIndex)_frame_\(String(format: "%04d", nextFrameIndex))"
-                let overlay = "\(task.displayName) | rep \(repIndex) | frame \(nextFrameIndex)"
-                validationImageReference = vm.imageCaptureService.saveCurrentCameraImage(from: vm.trackingManager.session,
-                                                                                         named: imageName,
-                                                                                         in: sessionFolder,
-                                                                                         overlayText: overlay)
-            } else {
-                validationImageReference = nil
-            }
-
-            taskVM.appendLiveFrame(task: task,
-                                   repetitionIndex: repIndex,
-                                   rawBlendshapes: vm.trackingManager.latestBlendshapes,
-                                   baseline: vm.baselineValues,
-                                   pose: vm.trackingManager.latestPose,
-                                   trackingState: vm.trackingManager.trackingStateDescription,
-                                   faceCount: vm.trackingManager.visibleFaceCount,
-                                   faceCenter: vm.trackingManager.faceCenter,
-                                   faceScale: vm.trackingManager.faceScale,
-                                   timestamp: vm.trackingManager.latestTimestamp,
-                                   isNeutralPhase: false,
-                                   imageReference: validationImageReference)
-            if now >= end {
-                timer.invalidate()
-                let peakCandidate = taskVM.peakFrameCandidate(for: task)
-                let framesForRep = taskVM.captureFrames
-                let result = taskVM.finalize(task: task,
-                                             config: config,
-                                             peakFrameReference: peakCandidate?.frame.imageReference,
-                                             peakFrameIndex: peakCandidate?.frame.frameIndex,
-                                             peakFrameTimestamp: peakCandidate?.frame.timestamp,
-                                             peakSignalValue: peakCandidate?.signalValue)
-                latestResult = result
-                vm.store(repetition: result, frames: framesForRep)
-
-                if repIndex >= config.repetitionsRequired {
-                    if vm.currentTaskIndex >= vm.tasks.count - 1 {
-                        _ = vm.saveSession()
-                        appState.routeStack.append(.sessionSummary)
-                    } else {
-                        vm.moveToNextTask()
-                        if let next = vm.currentTask {
-                            appState.routeStack.append(.taskInstruction(next))
-                        }
-                    }
+                if shouldSaveValidationImage {
+                    let imageName = "validation_\(task.rawValue)_rep_\(repIndex)_frame_\(String(format: "%04d", nextFrameIndex))"
+                    let overlay = "\(task.displayName) | rep \(repIndex) | frame \(nextFrameIndex)"
+                    validationImageReference = vm.imageCaptureService.saveCurrentCameraImage(from: vm.trackingManager.session,
+                                                                                             named: imageName,
+                                                                                             in: sessionFolder,
+                                                                                             overlayText: overlay)
                 } else {
-                    let nextRepIndex = repIndex + 1
-                    taskVM.resetForNextRep()
-                    taskVM.currentRepetitionIndex = nextRepIndex
+                    validationImageReference = nil
                 }
 
-                isCapturing = false
+                taskVM.appendLiveFrame(task: task,
+                                       repetitionIndex: repIndex,
+                                       rawBlendshapes: vm.trackingManager.latestBlendshapes,
+                                       baseline: vm.baselineValues,
+                                       pose: vm.trackingManager.latestPose,
+                                       trackingState: vm.trackingManager.trackingStateDescription,
+                                       faceCount: vm.trackingManager.visibleFaceCount,
+                                       faceCenter: vm.trackingManager.faceCenter,
+                                       faceScale: vm.trackingManager.faceScale,
+                                       timestamp: vm.trackingManager.latestTimestamp,
+                                       isNeutralPhase: false,
+                                       imageReference: validationImageReference)
+                if now >= end {
+                    timer.invalidate()
+                    let peakCandidate = taskVM.peakFrameCandidate(for: task)
+                    let framesForRep = taskVM.captureFrames
+                    let result = taskVM.finalize(task: task,
+                                                 config: config,
+                                                 peakFrameReference: peakCandidate?.frame.imageReference,
+                                                 peakFrameIndex: peakCandidate?.frame.frameIndex,
+                                                 peakFrameTimestamp: peakCandidate?.frame.timestamp,
+                                                 peakSignalValue: peakCandidate?.signalValue)
+                    latestResult = result
+                    vm.store(repetition: result, frames: framesForRep)
+
+                    if repIndex >= config.repetitionsRequired {
+                        if vm.currentTaskIndex >= vm.tasks.count - 1 {
+                            _ = vm.saveSession()
+                            appState.routeStack.append(.sessionSummary)
+                        } else {
+                            vm.moveToNextTask()
+                            if let next = vm.currentTask {
+                                appState.routeStack.append(.taskInstruction(next))
+                            }
+                        }
+                    } else {
+                        let nextRepIndex = repIndex + 1
+                        taskVM.resetForNextRep()
+                        taskVM.currentRepetitionIndex = nextRepIndex
+                    }
+
+                    isCapturing = false
+                }
             }
         }
         RunLoop.current.add(timer, forMode: .common)

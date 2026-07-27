@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct HeadPose: Codable, Equatable {
+struct HeadPose: Codable, Equatable, Sendable {
     let yawDegrees: Double
     let pitchDegrees: Double
     let rollDegrees: Double
