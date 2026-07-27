@@ -1,6 +1,7 @@
 import XCTest
 @testable import Facework
 
+@MainActor
 final class FeatureExtractionEngineTests: XCTestCase {
     private let engine = FeatureExtractionEngine()
     private let config = TaskConfiguration.default(for: .smileClosed)

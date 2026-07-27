@@ -43,15 +43,15 @@ final class SessionStore {
         try jsonExporter.export(config.mapKeys { $0.rawValue }, to: configURL)
         try jsonExporter.export(frames, to: framesJSONURL)
         try jsonExporter.export(repetitions, to: repetitionsJSONURL)
-        try csvExporter.exportFrames(frames, to: frameCSVURL)
-        try csvExporter.exportRepetitions(repetitions, to: repCSVURL)
-        try csvExporter.exportImageManifest(frames, to: imageManifestURL)
+        try csvExporter.exportFrames(frames, metadata: metadata, to: frameCSVURL)
+        try csvExporter.exportRepetitions(repetitions, metadata: metadata, to: repCSVURL)
+        try csvExporter.exportImageManifest(frames, metadata: metadata, to: imageManifestURL)
 
         let perTask = Dictionary(grouping: repetitions, by: \.taskType)
         for task in perTask.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let reps = perTask[task] else { continue }
             let taskURL = folder.appendingPathComponent("\(task.rawValue)_repetitions.csv")
-            try csvExporter.exportRepetitions(reps, to: taskURL)
+            try csvExporter.exportRepetitions(reps, metadata: metadata, to: taskURL)
             writtenURLs.append(taskURL)
         }
 

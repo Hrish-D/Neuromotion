@@ -8,10 +8,9 @@
 import Foundation
 import CoreGraphics
 
-struct AppConfiguration: Codable, Equatable {
+struct AppConfiguration: Equatable {
     static let shared = AppConfiguration()
 
-    let appVersion: String = "1.0.0"
     let researchModeDefault: Bool = false
     let neutralCaptureDuration: TimeInterval = 2.5
     let readinessStableDuration: TimeInterval = 1.0

@@ -18,21 +18,27 @@ final class SessionSetupViewModel: ObservableObject {
     @Published var affectedSide: AffectedSide = .none
     @Published var notes: String = ""
 
+    private let metadataFactory: SessionMetadataFactory
+
+    init(metadataFactory: SessionMetadataFactory = .current()) {
+        self.metadataFactory = metadataFactory
+    }
+
     var canProceed: Bool {
         !studyID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !participantID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    func buildMetadata() -> SessionMetadata {
-        SessionMetadata(
-            sessionID: UUID().uuidString,
+    func buildMetadata(
+        sessionID: String = UUID().uuidString,
+        sessionDate: Date = Date()
+    ) -> SessionMetadata {
+        metadataFactory.make(
+            sessionID: sessionID,
             studyID: studyID,
             participantID: participantID,
             raterID: raterID.isEmpty ? nil : raterID,
-            appVersion: AppConfiguration.shared.appVersion,
-            deviceModel: DeviceInfoProvider.deviceModel(),
-            osVersion: DeviceInfoProvider.osVersion(),
-            sessionDate: Date(),
+            sessionDate: sessionDate,
             notes: notes.isEmpty ? nil : notes,
             affectedSide: affectedSide,
             sessionLabel: sessionLabel.isEmpty ? nil : sessionLabel

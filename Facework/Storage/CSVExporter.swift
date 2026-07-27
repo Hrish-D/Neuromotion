@@ -9,7 +9,11 @@ import Foundation
 
 struct CSVExporter {
 
-    func exportFrames(_ frames: [FrameCapture], to url: URL) throws {
+    func exportFrames(
+        _ frames: [FrameCapture],
+        metadata: SessionMetadata? = nil,
+        to url: URL
+    ) throws {
         var lines: [String] = []
 
         let blendshapeKeys = Array(
@@ -39,6 +43,7 @@ struct CSVExporter {
         header += blendshapeKeys.map { "raw_\($0)" }
         header += blendshapeKeys.map { "normalized_\($0)" }
         header += blendshapeKeys.map { "smoothed_\($0)" }
+        header += identityHeaders
 
         lines.append(header.map { escape($0) }.joined(separator: ","))
 
@@ -70,6 +75,7 @@ struct CSVExporter {
             row += blendshapeKeys.map { key in
                 format(frame.smoothedBlendshapes[key])
             }
+            row += identityValues(metadata)
 
             lines.append(row.map { escape($0) }.joined(separator: ","))
         }
@@ -77,7 +83,11 @@ struct CSVExporter {
         try writeCSV(lines, to: url)
     }
     
-    func exportImageManifest(_ frames: [FrameCapture], to url: URL) throws {
+    func exportImageManifest(
+        _ frames: [FrameCapture],
+        metadata: SessionMetadata? = nil,
+        to url: URL
+    ) throws {
         var lines: [String] = []
 
         let header: [String] = [
@@ -90,7 +100,7 @@ struct CSVExporter {
             "imageReference"
         ]
 
-        lines.append(header.map { escape($0) }.joined(separator: ","))
+        lines.append((header + identityHeaders).map { escape($0) }.joined(separator: ","))
 
         let imageFrames = frames.filter { frame in
             guard let imageReference = frame.imageReference else { return false }
@@ -101,7 +111,7 @@ struct CSVExporter {
             let imageReference = frame.imageReference ?? ""
             let imageFileName = URL(fileURLWithPath: imageReference).lastPathComponent
 
-            let row: [String] = [
+            var row: [String] = [
                 frame.taskType.rawValue,
                 String(frame.repetitionIndex),
                 String(frame.frameIndex),
@@ -110,6 +120,7 @@ struct CSVExporter {
                 imageFileName,
                 imageReference
             ]
+            row += identityValues(metadata)
 
             lines.append(row.map { escape($0) }.joined(separator: ","))
         }
@@ -117,7 +128,11 @@ struct CSVExporter {
         try writeCSV(lines, to: url)
     }
 
-    func exportRepetitions(_ repetitions: [RepetitionResult], to url: URL) throws {
+    func exportRepetitions(
+        _ repetitions: [RepetitionResult],
+        metadata: SessionMetadata? = nil,
+        to url: URL
+    ) throws {
         var lines: [String] = []
 
         let header: [String] = [
@@ -140,12 +155,12 @@ struct CSVExporter {
             "peakSignalValue"
         ]
 
-        lines.append(header.map { escape($0) }.joined(separator: ","))
+        lines.append((header + identityHeaders).map { escape($0) }.joined(separator: ","))
 
         for rep in repetitions {
             let metrics = rep.derivedMetrics
 
-            let row: [String] = [
+            var row: [String] = [
                 rep.taskType.rawValue,
                 String(rep.repetitionIndex),
                 String(rep.valid),
@@ -164,6 +179,7 @@ struct CSVExporter {
                 format(rep.peakFrameTimestamp),
                 format(rep.peakSignalValue)
             ]
+            row += identityValues(metadata)
 
             lines.append(row.map { escape($0) }.joined(separator: ","))
         }
@@ -174,6 +190,24 @@ struct CSVExporter {
     private func writeCSV(_ lines: [String], to url: URL) throws {
         let csvText = lines.joined(separator: "\n")
         try csvText.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private var identityHeaders: [String] {
+        [
+            "sessionID",
+            "rawDataSchemaVersion",
+            "analysisAlgorithmVersion",
+            "captureProtocolVersion"
+        ]
+    }
+
+    private func identityValues(_ metadata: SessionMetadata?) -> [String] {
+        [
+            metadata?.sessionID ?? "",
+            metadata?.rawDataSchemaVersion ?? "",
+            metadata?.analysisAlgorithmVersion ?? "",
+            metadata?.captureProtocolVersion ?? ""
+        ]
     }
 
     private func format(_ value: Double) -> String {

@@ -1,6 +1,7 @@
 import XCTest
 @testable import Facework
 
+@MainActor
 final class ExporterTests: XCTestCase {
     func testPerFrameHeaderAndBlendshapeColumnsAreDeterministicallySorted() throws {
         let directory = try TemporaryDirectory(testName: #function)
@@ -26,7 +27,7 @@ final class ExporterTests: XCTestCase {
         let header = try contents(url).components(separatedBy: "\n")[0]
         XCTAssertEqual(
             header,
-            "task,repetition,valid,partial,failureReason,startTime,endTime,peakAmplitudeLeft,peakAmplitudeRight,peakVelocityLeft,peakVelocityRight,symmetry,confidenceScore,peakFrameReference,peakFrameIndex,peakFrameTimestamp,peakSignalValue"
+            "task,repetition,valid,partial,failureReason,startTime,endTime,peakAmplitudeLeft,peakAmplitudeRight,peakVelocityLeft,peakVelocityRight,symmetry,confidenceScore,peakFrameReference,peakFrameIndex,peakFrameTimestamp,peakSignalValue,sessionID,rawDataSchemaVersion,analysisAlgorithmVersion,captureProtocolVersion"
         )
     }
 
@@ -71,7 +72,7 @@ final class ExporterTests: XCTestCase {
         let lines = try contents(url).components(separatedBy: "\n")
         XCTAssertEqual(lines.count, 2)
         XCTAssertEqual(lines[0],
-                       "task,repetition,frameIndex,timestamp,isValidFrame,imageFileName,imageReference")
+                       "task,repetition,frameIndex,timestamp,isValidFrame,imageFileName,imageReference,sessionID,rawDataSchemaVersion,analysisAlgorithmVersion,captureProtocolVersion")
         XCTAssertTrue(lines[1].contains("validation.jpg"))
         XCTAssertTrue(lines[1].contains(absolutePath))
     }
@@ -110,6 +111,14 @@ final class ExporterTests: XCTestCase {
         XCTAssertLessThan(try XCTUnwrap(json.range(of: "\"affectedSide\"")?.lowerBound),
                           try XCTUnwrap(json.range(of: "\"appVersion\"")?.lowerBound))
         XCTAssertTrue(json.contains("2023-11-14T22:13:20Z"))
+        XCTAssertTrue(json.contains("\"appMarketingVersion\" : \"9.8.7\""))
+        XCTAssertTrue(json.contains("\"appBuildNumber\" : \"654\""))
+        XCTAssertTrue(json.contains("\"rawDataSchemaVersion\" : \"test-schema\""))
+        XCTAssertTrue(json.contains("\"analysisAlgorithmVersion\" : \"test-analysis\""))
+        XCTAssertTrue(json.contains("\"captureProtocolVersion\" : \"test-protocol\""))
+        XCTAssertTrue(json.contains("\"deviceModelIdentifier\" : \"SyntheticDevice1,1\""))
+        XCTAssertTrue(json.contains("\"operatingSystemName\" : \"SyntheticOS\""))
+        XCTAssertFalse(json.contains("wasLoadedFromLegacySchema"))
     }
 
     func testFrameJSONRoundTripPreservesAllCurrentDictionaries() throws {
@@ -144,6 +153,39 @@ final class ExporterTests: XCTestCase {
             XCTAssertEqual(try decoder.decode(SessionMetadata.self,
                                               from: Data(contentsOf: url)).notes,
                            value)
+        }
+    }
+
+    func testCSVExportsAppendDeterministicSessionVersionIdentity() throws {
+        let directory = try TemporaryDirectory(testName: #function)
+        let metadata = TestFixtures.metadata()
+        let frameURL = directory.url.appendingPathComponent("frames.csv")
+        let repetitionURL = directory.url.appendingPathComponent("repetitions.csv")
+        let manifestURL = directory.url.appendingPathComponent("manifest.csv")
+        let frame = TestFixtures.frame(imageReference: "/synthetic/validation.jpg")
+
+        let exporter = CSVExporter()
+        try exporter.exportFrames([frame], metadata: metadata, to: frameURL)
+        try exporter.exportRepetitions(
+            [TestFixtures.repetition(index: 1)],
+            metadata: metadata,
+            to: repetitionURL
+        )
+        try exporter.exportImageManifest([frame], metadata: metadata, to: manifestURL)
+
+        let expectedIdentity = [
+            metadata.sessionID,
+            metadata.rawDataSchemaVersion,
+            metadata.analysisAlgorithmVersion,
+            metadata.captureProtocolVersion
+        ].joined(separator: ",")
+
+        for url in [frameURL, repetitionURL, manifestURL] {
+            let lines = try contents(url).components(separatedBy: "\n")
+            XCTAssertTrue(lines[0].hasSuffix(
+                "sessionID,rawDataSchemaVersion,analysisAlgorithmVersion,captureProtocolVersion"
+            ))
+            XCTAssertTrue(try XCTUnwrap(lines.last).hasSuffix(expectedIdentity))
         }
     }
 

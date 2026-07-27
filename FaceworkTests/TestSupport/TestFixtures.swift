@@ -163,7 +163,17 @@ enum TestFixtures {
             sessionDate: Date(timeIntervalSince1970: 1_700_000_000),
             notes: notes,
             affectedSide: .none,
-            sessionLabel: "Synthetic Session"
+            sessionLabel: "Synthetic Session",
+            appMarketingVersion: "9.8.7",
+            appBuildNumber: "654",
+            rawDataSchemaVersion: "test-schema",
+            analysisAlgorithmVersion: "test-analysis",
+            captureProtocolVersion: "test-protocol",
+            meshCaptureVersion: "not-active",
+            landmarkConfigurationVersion: "not-active",
+            deviceModelIdentifier: "SyntheticDevice1,1",
+            operatingSystemName: "SyntheticOS",
+            operatingSystemVersion: "99.1"
         )
     }
 

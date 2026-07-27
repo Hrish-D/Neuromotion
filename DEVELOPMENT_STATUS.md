@@ -28,6 +28,10 @@ movement tasks, session summary, and export.
 - Per-repetition and per-task summaries.
 - JSON, per-frame CSV, per-repetition CSV, validation-image manifest, JPEG
   validation images, ZIP packaging, and share-sheet presentation.
+- Bundle-derived marketing/build identity and versioned research metadata:
+  raw schema `1.0.0`, analysis algorithm `0.1.0`, and capture protocol `0.1.0`.
+- Legacy metadata decoding that preserves historical fields without assigning
+  current analysis or capture versions to old sessions.
 - Generic physical-device application builds.
 
 ## Confirmed placeholders and unused components
@@ -62,9 +66,21 @@ movement tasks, session summary, and export.
   exact calculated peak frame.
 - Session-level QC currently treats any non-empty capture as valid for
   analysis.
-
 These limitations describe the current baseline and are intentionally
-unchanged by the characterization-test phase.
+unchanged by the version-identity phase.
+
+## Research-data identity
+
+New sessions record the app marketing version and build number from the app
+bundle, a public-API hardware model identifier, operating-system name and
+version, and the centralized research version identity. Mesh capture and
+operational landmarks remain inactive, so both corresponding version states
+are `not-active`.
+
+Historical metadata without the versioned schema decodes with
+`legacy-unknown`, `not-recorded`, and `not-active` values as appropriate.
+Current version numbers are never imputed into legacy sessions. The in-memory
+`wasLoadedFromLegacySchema` marker is not written to exports.
 
 ## Test status
 
@@ -75,11 +91,16 @@ round trips, and JSON/CSV/manifest exports. Minimal UI coverage verifies launch,
 home/setup navigation, setup-field gating, and the simulator's unsupported
 TrueDepth readiness state. TrueDepth capture remains outside simulator scope.
 
-`AppConfiguration` still conforms to `Codable` while all immutable properties
-have declaration-time defaults, producing synthesized-decoding warnings that
-those values cannot be overwritten. Repository search found no current
-`AppConfiguration` encode/decode call sites, but production conformance was
-left unchanged in this behavior-preservation phase.
+Version and migration tests cover bundle fallbacks, centralized research
+versions, deterministic device-information injection, current and legacy
+metadata, malformed-session isolation, and versioned CSV output.
+The suite contains 86 unit-test methods and 5 UI-test methods; two existing
+`CaptureSessionViewModel` checks remain simulator-skipped because that view
+model eagerly constructs `ARSession`.
+
+Repository search confirmed that `AppConfiguration` is never encoded or
+decoded. Its unused `Codable` conformance and hardcoded app-version field were
+removed without changing any scientific configuration value.
 
 ## Device-validation requirements
 
@@ -99,7 +120,6 @@ outside version control.
 
 ## Next implementation phase
 
-The next implementation phase should add explicit application-build,
-raw-schema, analysis-algorithm, capture-protocol, mesh, and landmark version
-identity without changing capture or analysis behavior. Atomic AR-frame
-sampling and actor-safe state updates remain later phases.
+The next implementation phase should publish immutable, atomic AR face
+observations with explicit actor-safe delivery while retaining timer-driven
+capture temporarily.
