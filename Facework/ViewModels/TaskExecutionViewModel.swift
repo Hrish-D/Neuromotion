@@ -19,8 +19,7 @@ final class TaskExecutionViewModel: ObservableObject {
     @Published var normalizedValues: [String: Double] = [:]
     @Published var captureFrames: [FrameCapture] = []
 
-    private let qcEngine = QualityControlEngine()
-    private let calibrator = BaselineCalibrator()
+    private let frameProcessor = FrameProcessor()
     private let analyzer = RepetitionAnalyzer()
     private let peakFrameFinder = PeakFrameFinder()
     private var frameIndex: Int = 0
@@ -50,41 +49,15 @@ final class TaskExecutionViewModel: ObservableObject {
                          isNeutralPhase: Bool,
                          imageReference: String? = nil,
                          meshVertices: [[Float]]? = nil) {
-        let normalized = calibrator.normalize(raw: rawBlendshapes, baseline: baseline)
-
-        let context = QualityControlContext(faceCount: faceCount,
-                                            trackingState: trackingState,
-                                            faceCenter: faceCenter,
-                                            faceScale: faceScale,
-                                            pose: pose,
-                                            rawBlendshapes: rawBlendshapes,
-                                            timestamp: timestamp,
-                                            isNeutralPhase: isNeutralPhase)
-
-        let evaluation = qcEngine.evaluate(current: context, previous: captureFrames.last)
-
-        let frame = FrameCapture(id: UUID(),
-                                 frameIndex: frameIndex,
-                                 timestamp: timestamp,
-                                 taskType: task,
-                                 repetitionIndex: repetitionIndex,
-                                 rawBlendshapes: rawBlendshapes,
-                                 normalizedBlendshapes: normalized,
-                                 smoothedBlendshapes: normalized,
-                                 headPose: pose,
-                                 trackingState: trackingState,
-                                 qcFlags: evaluation.flags,
-                                 isValidFrame: evaluation.valid,
-                                 imageReference: imageReference,
-                                 meshVertices: meshVertices)
-
-        frameIndex += 1
-        captureFrames.append(frame)
-
-        liveQCFlags = evaluation.flags
-        liveIsValid = evaluation.valid
-        debugValues = rawBlendshapes
-        normalizedValues = normalized
+        let raw = RawFrameCapture(
+            id: UUID(), recordingID: nil, frameIndex: frameIndex, sourceTimestamp: timestamp,
+            taskType: task, repetitionIndex: repetitionIndex, rawBlendshapes: rawBlendshapes,
+            faceTransform: nil, headPose: pose, faceIsPresent: nil, visibleFaceCount: faceCount,
+            faceTrackingState: nil, faceCenter: faceCenter, faceScale: faceScale,
+            cameraTrackingStateAtCapture: trackingState, isNeutralPhase: isNeutralPhase,
+            validationImageReference: imageReference
+        )
+        append(raw: raw, baseline: baseline, meshVertices: meshVertices)
     }
 
     func appendLiveFrame(
@@ -93,33 +66,29 @@ final class TaskExecutionViewModel: ObservableObject {
         isNeutralPhase: Bool,
         imageReference: String? = nil
     ) {
-        let observation = collectedObservation.observation
-        let task: TaskType
-        let repetitionIndex: Int
-
-        switch collectedObservation.mode {
-        case .neutral:
-            task = .neutralRest
-            repetitionIndex = 1
-        case .task(let capturedTask, let capturedRepetitionIndex):
-            task = capturedTask
-            repetitionIndex = capturedRepetitionIndex
-        }
-
-        appendLiveFrame(
-            task: task,
-            repetitionIndex: repetitionIndex,
-            rawBlendshapes: observation.rawBlendshapes,
-            baseline: baseline,
-            pose: observation.headPose ?? HeadPose(yawDegrees: 0, pitchDegrees: 0, rollDegrees: 0),
-            trackingState: collectedObservation.cameraTrackingState,
-            faceCount: observation.visibleFaceCount,
-            faceCenter: observation.faceCenter,
-            faceScale: observation.faceScale,
-            timestamp: observation.sourceTimestamp,
+        let raw = RawFrameCapture(
+            collectedObservation: collectedObservation,
+            frameIndex: frameIndex,
             isNeutralPhase: isNeutralPhase,
-            imageReference: imageReference
+            validationImageReference: imageReference
         )
+        append(raw: raw, baseline: baseline)
+    }
+
+    private func append(
+        raw: RawFrameCapture,
+        baseline: [String: Double],
+        meshVertices: [[Float]]? = nil
+    ) {
+        let processed = frameProcessor.process(raw: raw, baseline: baseline, previous: captureFrames.last)
+        let frame = FrameCapture(raw: processed.raw, analysis: processed.analysis, meshVertices: meshVertices)
+
+        frameIndex += 1
+        captureFrames.append(frame)
+        liveQCFlags = frame.qcFlags
+        liveIsValid = frame.isValidFrame
+        debugValues = frame.rawBlendshapes
+        normalizedValues = frame.normalizedBlendshapes
     }
 
     func peakFrameCandidate(for task: TaskType) -> PeakFrameCandidate? {

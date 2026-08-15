@@ -16,6 +16,13 @@ services and value-type calculators. Session data is held in memory and
 exported to JSON, CSV, validation images, and a ZIP archive in the app's
 Documents directory.
 
+Prompt 7 separates each accepted observation into an immutable
+`RawFrameCapture` and a distinct `FrameAnalysis`. `FrameCapture` is now a
+composite compatibility projection used by the unchanged analyzers and
+exports. `FrameProcessor` expresses the one-way raw-to-derived operation.
+`raw_frames.json` is the authoritative raw historical record for new sessions;
+the existing flat `frames.json` remains available for compatibility.
+
 The primary flow is setup, device readiness, neutral calibration, six guided
 movement tasks, session summary, and export.
 
@@ -37,7 +44,11 @@ movement tasks, session summary, and export.
 - JSON, per-frame CSV, per-repetition CSV, validation-image manifest, JPEG
   validation images, ZIP packaging, and share-sheet presentation.
 - Bundle-derived marketing/build identity and versioned research metadata:
-  raw schema `1.0.0`, analysis algorithm `0.1.0`, and capture protocol `0.1.0`.
+  raw schema `2.0.0`, analysis algorithm `0.1.0`, and capture protocol `0.1.0`.
+- Independent immutable raw acquisition persistence in `raw_frames.json`,
+  including source timestamps, AR coefficients, copied transform and pose,
+  face observation state/count/framing placeholders, recording context,
+  separately sampled camera tracking state, and associated image references.
 - Legacy metadata decoding that preserves historical fields without assigning
   current analysis or capture versions to old sessions.
 - Generic physical-device application builds.
@@ -68,8 +79,8 @@ movement tasks, session summary, and export.
 - Neutral calibration falls back to all neutral frames when none pass QC.
 - Configured rest duration and contiguous hold-duration validation are not
   enforced by the current task flow.
-- Stored `smoothedBlendshapes` currently duplicate normalized values; smoothing
-  is applied later during feature extraction.
+- Compatibility `FrameAnalysis.smoothedBlendshapes` still duplicates normalized
+  values at capture; smoothing is applied later during feature extraction.
 - Validation JPEG sampling is periodic and is not guaranteed to capture the
   exact calculated peak frame.
 - Validation-image capture still reads `ARSession.currentFrame` separately
@@ -90,7 +101,7 @@ movement tasks, session summary, and export.
   measurements.
 
 These limitations describe the current baseline and are intentionally
-unchanged except for the intentional move to observation-driven capture.
+unchanged by the raw/derived architectural separation.
 
 ## Research-data identity
 
@@ -104,6 +115,13 @@ Historical metadata without the versioned schema decodes with
 `legacy-unknown`, `not-recorded`, and `not-active` values as appropriate.
 Current version numbers are never imputed into legacy sessions. The in-memory
 `wasLoadedFromLegacySchema` marker is not written to exports.
+
+Raw schema `2.0.0` identifies sessions with the independent authoritative raw
+record. Existing metadata that explicitly records raw schema `1.0.0` retains
+that identity, and metadata predating version fields remains `legacy-unknown`.
+Legacy flat `FrameCapture` JSON still decodes without inventing observation
+facts that were not historically stored. Analysis remains `0.1.0`, capture
+protocol remains `0.1.0`, and mesh and landmark states remain `not-active`.
 
 ## Test status
 
@@ -124,7 +142,11 @@ ARKit, compatibility state, and MainActor publication.
 Observation-collector tests cover active capture boundaries, neutral/task
 modes, repetition identity, ordered delivery, 0.1-second source-time sampling,
 face loss, reacquisition, late observations, and MainActor mutation.
-The suite contains 125 unit-test methods and 5 UI-test methods; two existing
+Raw-separation tests cover observation-to-raw copying, dictionary and transform
+independence, structural exclusion of derived values, non-mutating deterministic
+processing, legacy flat-frame decoding, current raw round trips, camera-state
+context separation, and the authoritative raw export projection.
+The suite contains 136 unit-test methods and 5 UI-test methods; two existing
 `CaptureSessionViewModel` checks remain simulator-skipped because that view
 model eagerly constructs `ARSession`.
 
@@ -167,6 +189,4 @@ outside version control.
 
 ## Next implementation phase
 
-Prompt 7 should separate immutable raw frames from processed analysis data,
-including truthful baseline-corrected and smoothed-value semantics while
-preserving legacy-session readability.
+Prompt 8: make processing explicitly timestamp-aware and deterministic.

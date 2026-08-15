@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum TaskType: String, Codable, CaseIterable, Identifiable, Hashable {
+enum TaskType: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
     case neutralRest
     case browRaise
     case eyeClosure

@@ -7,7 +7,7 @@ import CoreGraphics
 import Foundation
 import simd
 
-enum FaceTrackingObservationState: String, Equatable, Sendable {
+enum FaceTrackingObservationState: String, Codable, Equatable, Sendable {
     case tracking
     case noFace
     case multipleFaces

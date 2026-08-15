@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum QCFlag: String, Codable, CaseIterable, Identifiable {
+enum QCFlag: String, Codable, CaseIterable, Identifiable, Sendable {
     case trackingLost
     case noFace
     case multipleFaces

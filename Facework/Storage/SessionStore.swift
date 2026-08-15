@@ -8,9 +8,15 @@
 import Foundation
 
 final class SessionStore {
+    static let rawFramesFileName = "raw_frames.json"
+
     private let fileManagerService = FileManagerService()
     private let jsonExporter = JSONExporter()
     private let csvExporter = CSVExporter()
+
+    static func authoritativeRawFrames(from frames: [FrameCapture]) -> [RawFrameCapture] {
+        frames.map(\.raw)
+    }
 
     func save(metadata: SessionMetadata,
               config: [TaskType: TaskConfiguration],
@@ -22,6 +28,7 @@ final class SessionStore {
         let metadataURL = folder.appendingPathComponent("metadata.json")
         let summaryURL = folder.appendingPathComponent("session_summary.json")
         let framesJSONURL = folder.appendingPathComponent("frames.json")
+        let rawFramesJSONURL = folder.appendingPathComponent(Self.rawFramesFileName)
         let repetitionsJSONURL = folder.appendingPathComponent("repetitions.json")
         let frameCSVURL = folder.appendingPathComponent("merged_per_frame.csv")
         let repCSVURL = folder.appendingPathComponent("merged_per_repetition.csv")
@@ -32,6 +39,7 @@ final class SessionStore {
             metadataURL,
             summaryURL,
             framesJSONURL,
+            rawFramesJSONURL,
             repetitionsJSONURL,
             frameCSVURL,
             repCSVURL,
@@ -42,6 +50,7 @@ final class SessionStore {
         try jsonExporter.export(metadata, to: metadataURL)
         try jsonExporter.export(config.mapKeys { $0.rawValue }, to: configURL)
         try jsonExporter.export(frames, to: framesJSONURL)
+        try jsonExporter.export(Self.authoritativeRawFrames(from: frames), to: rawFramesJSONURL)
         try jsonExporter.export(repetitions, to: repetitionsJSONURL)
         try csvExporter.exportFrames(frames, metadata: metadata, to: frameCSVURL)
         try csvExporter.exportRepetitions(repetitions, metadata: metadata, to: repCSVURL)
