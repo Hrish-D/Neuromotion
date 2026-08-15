@@ -26,7 +26,9 @@ movement tasks, session summary, and export.
 - ARKit face preview, face-anchor updates, selected blend-shape capture, and
   optional face-mesh display on supported hardware.
 - Neutral blend-shape baseline capture and baseline subtraction.
-- Timed capture of three repetitions for each configured movement task.
+- Observation-driven scientific capture at a minimum source-time interval of
+  0.1 seconds, with timers retained only for countdown and phase boundaries.
+- Three repetitions for each configured movement task.
 - Per-frame tracking, framing, pose, timestamp, signal-plausibility, and
   neutral-activation flags.
 - Blend-shape amplitude, onset, time-to-peak, velocity, hold-stability,
@@ -70,6 +72,9 @@ movement tasks, session summary, and export.
   is applied later during feature extraction.
 - Validation JPEG sampling is periodic and is not guaranteed to capture the
   exact calculated peak frame.
+- Validation-image capture still reads `ARSession.currentFrame` separately
+  from the accepted scientific observation, so exact image/measurement
+  synchronization is not guaranteed.
 - Session-level QC currently treats any non-empty capture as valid for
   analysis.
 - Observation timestamps sample `ARSession.currentFrame.timestamp` once per
@@ -77,9 +82,15 @@ movement tasks, session summary, and export.
   intrinsic to `ARFaceAnchor`.
 - Camera/session tracking status remains separate from face observations and
   is still consumed by the existing tracking QC compatibility path.
+- Accepted cadence depends on source-observation timing. A verified device
+  session produced later tasks at approximately 10.0 Hz, while earlier tasks
+  commonly ran near 8.57 Hz because source timestamps were approximately
+  0.11665 seconds apart. A few larger gaps also occurred. Cadence consistency
+  must be revisited before relying on high-precision timing or velocity
+  measurements.
 
 These limitations describe the current baseline and are intentionally
-unchanged by the version-identity and atomic-observation phases.
+unchanged except for the intentional move to observation-driven capture.
 
 ## Research-data identity
 
@@ -110,7 +121,10 @@ Atomic-observation tests cover copied callback values, source timestamps,
 dictionary and transform independence, production callback cardinality,
 ordered update/removal/reacquisition delivery, synthetic delivery without
 ARKit, compatibility state, and MainActor publication.
-The suite contains 107 unit-test methods and 5 UI-test methods; two existing
+Observation-collector tests cover active capture boundaries, neutral/task
+modes, repetition identity, ordered delivery, 0.1-second source-time sampling,
+face loss, reacquisition, late observations, and MainActor mutation.
+The suite contains 125 unit-test methods and 5 UI-test methods; two existing
 `CaptureSessionViewModel` checks remain simulator-skipped because that view
 model eagerly constructs `ARSession`.
 
@@ -118,17 +132,34 @@ Repository search confirmed that `AppConfiguration` is never encoded or
 decoded. Its unused `Codable` conformance and hardcoded app-version field were
 removed without changing any scientific configuration value.
 
-## Device-validation requirements
+## Physical-device verification
 
-End-to-end verification requires a supported physical TrueDepth device with
-camera permission granted. Device verification must cover:
+Prompt 6 end-to-end verification completed successfully on an `iPhone17,3`
+running iOS 26.2 with Facework 1.0 build 1. The exported session identified raw
+schema `1.0.0`, analysis version `0.1.0`, and capture protocol `0.1.0`.
 
-1. Face-tracking support and camera authorization.
-2. Live camera preview and optional mesh overlay.
-3. Neutral calibration and each movement task.
-4. AR face-anchor, blend-shape, pose, and captured-image availability.
-5. Repetition completion, QC presentation, session summary, file export, ZIP
-   sharing, and validation-image linkage.
+- Neutral calibration completed successfully.
+- All six facial tasks completed with three repetitions each.
+- Scientific frame construction and repetition isolation worked.
+- The session exported 515 scientific frames with no duplicate or decreasing
+  timestamps and no accepted interval below the intended 0.1-second gate.
+- Later tasks ran at approximately 10.0 Hz accepted capture. Earlier tasks
+  commonly ran near 8.57 Hz because accepted source timestamps were about
+  0.11665 seconds apart.
+- A few larger source-timestamp gaps occurred, including during the invalid
+  Smile Showing Teeth repetition.
+- Validation images were generated at frame indexes 0, 10, and 20, and 54
+  validation images were exported.
+- Session JSON, merged CSV files, task-specific CSV files, images, ZIP
+  packaging, and sharing all succeeded.
+- Overall session QC reported 97.67% passing frames and valid for analysis.
+- Seventeen of eighteen task repetitions were valid. Smile Showing Teeth
+  repetition 1 was correctly reported as partial/invalid with `signalSpike`
+  and `invalidTimestampGap`.
+
+Exact validation-image/measurement synchronization and accepted-cadence
+consistency remain outstanding scientific limitations rather than failed
+device-verification steps.
 
 Use synthetic or consenting non-identifiable data during development. Exported
 participant sessions, research data, facial images, and local logs must remain
@@ -136,6 +167,6 @@ outside version control.
 
 ## Next implementation phase
 
-The next implementation phase should replace timer polling for scientific
-capture with the atomic observation stream. Timers should remain only for
-countdowns and phase transitions.
+Prompt 7 should separate immutable raw frames from processed analysis data,
+including truthful baseline-corrected and smoothed-value semantics while
+preserving legacy-session readability.
