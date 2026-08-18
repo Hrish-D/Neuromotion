@@ -12,8 +12,10 @@ struct VelocityCalculator {
         guard values.count == timestamps.count, values.count > 1 else { return [] }
         var output: [Double] = [0]
         for index in 1..<values.count {
-            let dt = timestamps[index] - timestamps[index - 1]
-            guard dt > 0 else {
+            guard let dt = TemporalSampleUtilities.positiveInterval(
+                from: timestamps[index - 1],
+                to: timestamps[index]
+            ) else {
                 output.append(0)
                 continue
             }

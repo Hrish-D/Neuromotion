@@ -11,8 +11,11 @@ struct SignalPlausibilityValidator {
     func validate(previous: FrameCapture?, currentRaw: [String: Double], timestamp: TimeInterval) -> [QCFlag] {
         var flags: [QCFlag] = []
         if let previous {
-            let dt = timestamp - previous.timestamp
-            if dt <= 0 || dt > AppConfiguration.shared.maxFrameGapSeconds {
+            let dt = TemporalSampleUtilities.positiveInterval(
+                from: previous.timestamp,
+                to: timestamp
+            )
+            if dt.map({ $0 > AppConfiguration.shared.maxFrameGapSeconds }) ?? true {
                 flags.append(.invalidTimestampGap)
             }
             for (key, value) in currentRaw {

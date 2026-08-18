@@ -15,13 +15,24 @@ struct SessionSummaryView: View {
         ScrollView {
             if let vm = appState.currentSessionViewModel {
                 let summary = vm.buildSessionSummary()
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Session Summary")
-                        .font(.largeTitle)
-                        .bold()
+                VStack(alignment: .leading, spacing: 20) {
+                    FaceworkSectionHeader("Session Summary", subtitle: "Capture results and local research exports.")
 
-                    Text("Participant: \(summary.sessionMetadata.participantID)")
-                    Text("Overall QC: \(summary.overallQC.percentFramesPassing * 100, specifier: "%.0f")% valid frames")
+                    FaceworkCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            FaceworkStatusBadge(
+                                title: summary.overallQC.validForAnalysis ? "Valid for analysis" : "Review required",
+                                systemImage: summary.overallQC.validForAnalysis ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                                color: summary.overallQC.validForAnalysis ? .green : .orange
+                            )
+                            Text("Participant: \(summary.sessionMetadata.participantID)")
+                                .font(.headline)
+                            Text("Overall QC: \(summary.overallQC.percentFramesPassing * 100, specifier: "%.0f")% valid frames")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    FaceworkSectionHeader("Tasks")
 
                     ForEach(summary.taskSummaries) { taskSummary in
                         taskSummaryCard(taskSummary)
@@ -32,26 +43,29 @@ struct SessionSummaryView: View {
                             .foregroundStyle(.red)
                     }
 
-                    Button("Save / Refresh Export Files") {
-                        vm.saveSession()
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Button("Share Exported Data") {
-                        if vm.shareableExportURLs.isEmpty {
-                            _ = vm.saveSession()
+                    FaceworkSectionHeader("Exports")
+                    VStack(spacing: 10) {
+                        Button("Save / Refresh Export Files") {
+                            vm.saveSession()
                         }
-                        showingShareSheet = !vm.shareableExportURLs.isEmpty
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!vm.lastError.isNilOrEmpty)
+                        .buttonStyle(FaceworkPrimaryButtonStyle())
 
-                    Button("Return Home") {
-                        vm.stopTracking()
-                        appState.currentSessionViewModel = nil
-                        appState.routeStack.removeAll()
+                        Button("Share Exported Data") {
+                            if vm.shareableExportURLs.isEmpty {
+                                _ = vm.saveSession()
+                            }
+                            showingShareSheet = !vm.shareableExportURLs.isEmpty
+                        }
+                        .buttonStyle(FaceworkSecondaryButtonStyle())
+                        .disabled(!vm.lastError.isNilOrEmpty)
+
+                        Button("Return Home") {
+                            vm.stopTracking()
+                            appState.currentSessionViewModel = nil
+                            appState.routeStack.removeAll()
+                        }
+                        .buttonStyle(FaceworkSecondaryButtonStyle())
                     }
-                    .buttonStyle(.bordered)
 
                     if !vm.exportPaths.isEmpty {
                         Text("Saved Files")
@@ -64,6 +78,7 @@ struct SessionSummaryView: View {
                     }
                 }
                 .padding()
+                .faceworkScreenBackground()
                 .sheet(isPresented: $showingShareSheet) {
                     ActivityView(activityItems: vm.shareableExportURLs.map { $0 as Any })
                 }
@@ -73,9 +88,10 @@ struct SessionSummaryView: View {
                     Button("Return Home") {
                         appState.routeStack.removeAll()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(FaceworkPrimaryButtonStyle())
                 }
                 .padding()
+                .faceworkScreenBackground()
             }
         }
         .navigationBarBackButtonHidden(true)
@@ -97,9 +113,13 @@ struct SessionSummaryView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(.separator).opacity(0.35), lineWidth: 1)
+        }
     }
 
     private func averagePeakAmplitude(_ metrics: DerivedMetrics) -> Double? {

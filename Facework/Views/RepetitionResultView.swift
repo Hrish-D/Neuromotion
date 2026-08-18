@@ -12,8 +12,11 @@ struct RepetitionResultView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(result.valid ? "Valid Repetition" : (result.partial ? "Partial Repetition" : "Invalid Repetition"))
-                .font(.headline)
+            FaceworkStatusBadge(
+                title: result.valid ? "Valid Repetition" : (result.partial ? "Partial Repetition" : "Invalid Repetition"),
+                systemImage: result.valid ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                color: result.valid ? .green : (result.partial ? .orange : .red)
+            )
             Text("QC pass rate: \(result.qcSummary.percentFramesPassing * 100, specifier: "%.0f")%")
             if let symmetry = result.derivedMetrics.symmetry {
                 Text("Symmetry: \(symmetry, specifier: "%.3f")")
@@ -30,8 +33,12 @@ struct RepetitionResultView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(.separator).opacity(0.35), lineWidth: 1)
+        }
     }
 }

@@ -23,6 +23,11 @@ exports. `FrameProcessor` expresses the one-way raw-to-derived operation.
 `raw_frames.json` is the authoritative raw historical record for new sessions;
 the existing flat `frames.json` remains available for compatibility.
 
+Prompt 8 makes onset sustain explicitly time-based: a threshold crossing must
+remain observed above threshold for 0.3 seconds of source timestamp time. A
+small deterministic timing utility also centralizes positive interval and
+elapsed-duration validation without inventing replacement timestamps.
+
 The primary flow is setup, device readiness, neutral calibration, six guided
 movement tasks, session summary, and export.
 
@@ -40,11 +45,14 @@ movement tasks, session summary, and export.
   neutral-activation flags.
 - Blend-shape amplitude, onset, time-to-peak, velocity, hold-stability,
   symmetry, repeatability, fatigue-slope, and confidence calculations.
+- Actual source timestamps drive onset sustain, velocity, frame-gap QC,
+  time-to-peak, repetition boundaries, and the existing hold-duration
+  validator. Capture cadence is not assumed to be 10 Hz.
 - Per-repetition and per-task summaries.
 - JSON, per-frame CSV, per-repetition CSV, validation-image manifest, JPEG
   validation images, ZIP packaging, and share-sheet presentation.
 - Bundle-derived marketing/build identity and versioned research metadata:
-  raw schema `2.0.0`, analysis algorithm `0.1.0`, and capture protocol `0.1.0`.
+  raw schema `2.0.0`, analysis algorithm `0.2.0`, and capture protocol `0.1.0`.
 - Independent immutable raw acquisition persistence in `raw_frames.json`,
   including source timestamps, AR coefficients, copied transform and pose,
   face observation state/count/framing placeholders, recording context,
@@ -81,6 +89,9 @@ movement tasks, session summary, and export.
   enforced by the current task flow.
 - Compatibility `FrameAnalysis.smoothedBlendshapes` still duplicates normalized
   values at capture; smoothing is applied later during feature extraction.
+- Feature-extraction smoothing deliberately remains a five-sample moving
+  average. Its sample-domain semantics require a later, scientifically
+  justified signal-processing decision rather than an implicit time filter.
 - Validation JPEG sampling is periodic and is not guaranteed to capture the
   exact calculated peak frame.
 - Validation-image capture still reads `ARSession.currentFrame` separately
@@ -100,8 +111,10 @@ movement tasks, session summary, and export.
   must be revisited before relying on high-precision timing or velocity
   measurements.
 
-These limitations describe the current baseline and are intentionally
-unchanged by the raw/derived architectural separation.
+The Prompt 8 onset change intentionally removes the former truncated-end
+behavior: a final qualifying suffix is not sustained unless its observed
+timestamps span the full configured duration. Other listed scientific
+limitations remain unchanged.
 
 ## Research-data identity
 
@@ -120,8 +133,10 @@ Raw schema `2.0.0` identifies sessions with the independent authoritative raw
 record. Existing metadata that explicitly records raw schema `1.0.0` retains
 that identity, and metadata predating version fields remains `legacy-unknown`.
 Legacy flat `FrameCapture` JSON still decodes without inventing observation
-facts that were not historically stored. Analysis remains `0.1.0`, capture
-protocol remains `0.1.0`, and mesh and landmark states remain `not-active`.
+facts that were not historically stored. New analysis uses `0.2.0`; historical
+sessions explicitly marked `0.1.0` retain that identity and unversioned sessions
+remain `legacy-unknown`. Raw schema remains `2.0.0`, capture protocol remains
+`0.1.0`, and mesh and landmark states remain `not-active`.
 
 ## Test status
 
@@ -146,7 +161,11 @@ Raw-separation tests cover observation-to-raw copying, dictionary and transform
 independence, structural exclusion of derived values, non-mutating deterministic
 processing, legacy flat-frame decoding, current raw round trips, camera-state
 context separation, and the authoritative raw export projection.
-The suite contains 136 unit-test methods and 5 UI-test methods; two existing
+Timestamp tests cover duration-based onset with regular, irregular, mixed, and
+approximately 8.57 Hz cadence; floating-point boundaries; invalid intervals;
+and existing real-delta velocity semantics. The conservative UI pass retains
+the five established UI test methods.
+The suite contains 148 unit-test methods and 5 UI-test methods; two existing
 `CaptureSessionViewModel` checks remain simulator-skipped because that view
 model eagerly constructs `ARSession`.
 
@@ -189,4 +208,14 @@ outside version control.
 
 ## Next implementation phase
 
-Prompt 8: make processing explicitly timestamp-aware and deterministic.
+Prompt 9: baseline/calibration and capture-QC reliability, followed by
+measurement/image synchronization before major custom mesh or model work.
+
+## Presentation status
+
+A conservative presentation-only polish pass introduced adaptive solid
+backgrounds, restrained cards and borders, consistent action styles, clearer
+status badges, and stronger hierarchy across setup, readiness, calibration,
+task capture, session summary, and previous sessions. It uses no gradients and
+changes no routes, workflows, capture behavior, scientific processing, export
+actions, or data-entry behavior.

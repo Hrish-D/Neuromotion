@@ -23,9 +23,7 @@ struct TaskExecutionView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                Text(task.displayName)
-                    .font(.title2)
-                    .bold()
+                FaceworkSectionHeader(task.displayName, subtitle: "Complete each repetition steadily and comfortably.")
                 
                 Toggle("Demo Mode", isOn: $appState.demoPrivacyMode)
 
@@ -53,17 +51,26 @@ struct TaskExecutionView: View {
                             showMeshOverlay: appState.showFaceMeshOverlay
                         )
                         .frame(height: 280)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     
                     Toggle("Show live face mesh", isOn: $appState.showFaceMeshOverlay)
                         .font(.subheadline)
 
-                    ProgressIndicatorView(current: taskVM.currentRepetitionIndex,
-                                          total: vm.taskConfigurations[task]?.repetitionsRequired ?? 3)
-
-                    Text("Hold countdown: \(holdCountdown, specifier: "%.1f") s")
-                        .font(.headline)
+                    FaceworkCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            ProgressIndicatorView(current: taskVM.currentRepetitionIndex,
+                                                  total: vm.taskConfigurations[task]?.repetitionsRequired ?? 3)
+                            HStack {
+                                Text(isCapturing ? "Hold" : "Ready")
+                                    .font(.headline)
+                                Spacer()
+                                Text("\(holdCountdown, specifier: "%.1f") s")
+                                    .font(.title2.monospacedDigit().weight(.semibold))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                    }
 
                     LiveQCIndicatorView(flags: taskVM.liveQCFlags, isValid: taskVM.liveIsValid)
 
@@ -75,7 +82,7 @@ struct TaskExecutionView: View {
                         Button(isCapturing ? "Capturing..." : "Capture Repetition") {
                             startCapture(using: vm)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(FaceworkPrimaryButtonStyle())
                         .disabled(isCapturing)
 
                         Button("Reset Rep") {
@@ -84,7 +91,7 @@ struct TaskExecutionView: View {
                             taskVM.resetForNextRep()
                             latestResult = nil
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(FaceworkSecondaryButtonStyle())
                     }
 
                     if let latestResult {
@@ -94,6 +101,7 @@ struct TaskExecutionView: View {
             }
             .padding()
         }
+        .faceworkScreenBackground()
         .onAppear {
             captureVM?.startTracking()
         }

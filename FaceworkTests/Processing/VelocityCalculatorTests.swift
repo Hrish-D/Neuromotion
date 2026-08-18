@@ -23,6 +23,25 @@ final class VelocityCalculatorTests: XCTestCase {
                        [0, 2, 4.0 / 3.0])
     }
 
+    func testSameSignalChangeReflectsActualInterval() {
+        XCTAssertEqual(calculator.derivative(values: [0, 0.2], timestamps: [0, 0.1])[1],
+                       2, accuracy: 0.000_001)
+        XCTAssertEqual(calculator.derivative(values: [0, 0.2], timestamps: [0, 0.2])[1],
+                       1, accuracy: 0.000_001)
+    }
+
+    func testPhysicalAndMixedCadenceRemainDeterministic() {
+        let physical = calculator.derivative(values: [0, 0.1, 0.2, 0.3],
+                                             timestamps: [0, 0.11665, 0.23330, 0.34995])
+        XCTAssertEqual(physical[1], 0.1 / 0.11665, accuracy: 0.000_001)
+        XCTAssertEqual(physical[2], 0.1 / 0.11665, accuracy: 0.000_001)
+
+        let mixed = calculator.derivative(values: [0, 0.1, 0.2, 0.3, 0.4],
+                                          timestamps: [0, 0.1, 0.217, 0.317, 0.467])
+        XCTAssertEqual(mixed[2], 0.1 / 0.117, accuracy: 0.000_001)
+        XCTAssertEqual(mixed[4], 0.1 / 0.15, accuracy: 0.000_001)
+    }
+
     func testDuplicateAndDecreasingTimestampsYieldZeroDerivative() {
         XCTAssertEqual(calculator.derivative(values: [0, 1, 2], timestamps: [0, 0, -1]), [0, 0, 0])
     }

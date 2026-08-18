@@ -16,10 +16,8 @@ struct DeviceReadinessView: View {
         if let vm = appState.currentSessionViewModel {
             DeviceReadinessContent(vm: vm)
         } else {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Device Readiness")
-                    .font(.title2)
-                    .bold()
+            VStack(alignment: .leading, spacing: 20) {
+                FaceworkSectionHeader("Device Readiness", subtitle: "Confirm this device can begin facial tracking.")
 
                 Text("No active capture session was found.")
                     .foregroundStyle(.red)
@@ -27,11 +25,12 @@ struct DeviceReadinessView: View {
                 Button("Go Back") {
                     appState.routeStack.removeLast()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(FaceworkPrimaryButtonStyle())
 
                 Spacer()
             }
             .padding()
+            .faceworkScreenBackground()
         }
     }
 }
@@ -43,18 +42,21 @@ private struct DeviceReadinessContent: View {
     @State private var hasRequested = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Device Readiness")
-                .font(.title2)
-                .bold()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                FaceworkSectionHeader("Device Readiness", subtitle: "All checks must pass before neutral calibration.")
 
-            readinessRow("Face Tracking Supported", vm.readinessStatus.isFaceTrackingSupported)
-            readinessRow("Camera Permission", vm.readinessStatus.cameraPermissionGranted)
-            readinessRow("Front Camera", vm.readinessStatus.frontCameraAvailable)
-            readinessRow("Exactly One Face", vm.readinessStatus.exactlyOneFaceVisible)
-            readinessRow("Framing Ready", vm.readinessStatus.framingReady)
-            readinessRow("Pose Ready", vm.readinessStatus.poseReady)
-            readinessRow("Tracking Stable", vm.readinessStatus.trackingStable)
+                FaceworkCard {
+                    VStack(spacing: 12) {
+                        readinessRow("Face Tracking Supported", vm.readinessStatus.isFaceTrackingSupported)
+                        readinessRow("Camera Permission", vm.readinessStatus.cameraPermissionGranted)
+                        readinessRow("Front Camera", vm.readinessStatus.frontCameraAvailable)
+                        readinessRow("Exactly One Face", vm.readinessStatus.exactlyOneFaceVisible)
+                        readinessRow("Framing Ready", vm.readinessStatus.framingReady)
+                        readinessRow("Pose Ready", vm.readinessStatus.poseReady)
+                        readinessRow("Tracking Stable", vm.readinessStatus.trackingStable)
+                    }
+                }
 
             if !vm.readinessStatus.blockingReasons.isEmpty {
                 Text("Blocking Reasons")
@@ -66,16 +68,18 @@ private struct DeviceReadinessContent: View {
                 }
             }
 
-            Button("Proceed to Neutral Baseline") {
-                vm.trackingManager.stop()
-                appState.routeStack.append(.neutralCalibration)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!vm.readinessStatus.canProceed)
+                Button("Proceed to Neutral Baseline") {
+                    vm.trackingManager.stop()
+                    appState.routeStack.append(.neutralCalibration)
+                }
+                .buttonStyle(FaceworkPrimaryButtonStyle())
+                .disabled(!vm.readinessStatus.canProceed)
 
-            Spacer()
+                Spacer()
+            }
+            .padding()
         }
-        .padding()
+        .faceworkScreenBackground()
         .onAppear {
             runReadinessChecks()
         }

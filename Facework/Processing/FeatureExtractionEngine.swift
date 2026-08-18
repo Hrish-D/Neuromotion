@@ -117,15 +117,14 @@ struct FeatureExtractionEngine {
 
     private func onsetTime(signal: [Double], timestamps: [TimeInterval], threshold: Double) -> Double? {
         guard signal.count == timestamps.count, !signal.isEmpty else { return nil }
-        let sustainCount = AppConfiguration.shared.onsetSustainFrameCount
-        for index in 0..<signal.count {
-            guard signal[index] >= threshold else { continue }
-            let upper = min(signal.count, index + sustainCount)
-            if signal[index..<upper].allSatisfy({ $0 >= threshold }) {
-                return timestamps[index] - timestamps[0]
-            }
-        }
-        return nil
+        let requiredDuration = AppConfiguration.shared.onsetSustainDurationSeconds
+        guard let onsetIndex = TemporalSampleUtilities.sustainedOnsetIndex(
+            signal: signal,
+            timestamps: timestamps,
+            threshold: threshold,
+            requiredDuration: requiredDuration
+        ) else { return nil }
+        return TemporalSampleUtilities.elapsedTime(from: timestamps[0], to: timestamps[onsetIndex])
     }
 
     private func timeToPeak(onset: Double?, peakIndex: Int?, timestamps: [TimeInterval]) -> Double? {

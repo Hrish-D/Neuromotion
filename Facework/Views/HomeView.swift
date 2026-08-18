@@ -12,38 +12,41 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack(path: $appState.routeStack) {
-            VStack(spacing: 20) {
-                Text("Facial Motion Baseline")
-                    .font(.largeTitle)
-                    .bold()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Facial Motion Baseline")
+                            .font(.largeTitle.weight(.bold))
+                        Text("Deterministic facial movement assessment")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
 
-                Text("Deterministic baseline facial movement measurement")
-                    .foregroundStyle(.secondary)
+                    VStack(spacing: 12) {
+                        NavigationLink(value: AppRoute.setup) {
+                            actionCard(title: "Start New Session", subtitle: "Create metadata and begin capture", icon: "plus.circle.fill")
+                        }
+                        NavigationLink(value: AppRoute.previousSessions) {
+                            actionCard(title: "Review Previous Sessions", subtitle: "Browse local session folders", icon: "clock.arrow.circlepath")
+                        }
+                        NavigationLink(value: AppRoute.settings) {
+                            actionCard(title: "Settings", subtitle: "Research mode and app configuration", icon: "gearshape.fill")
+                        }
+                    }
+                    .buttonStyle(.plain)
 
-                NavigationLink(value: AppRoute.setup) {
-                    actionCard(title: "Start New Session", subtitle: "Create metadata and begin capture")
+                    FaceworkCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            FaceworkSectionHeader("TrueDepth required")
+                            Label("Face tracking requires a supported physical iPhone.", systemImage: "faceid")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
-                NavigationLink(value: AppRoute.previousSessions) {
-                    actionCard(title: "Review Previous Sessions", subtitle: "Browse local session folders")
-                }
-                NavigationLink(value: AppRoute.settings) {
-                    actionCard(title: "Settings", subtitle: "Research mode and app configuration")
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Device / Tracking Status")
-                        .font(.headline)
-                    Text("Face tracking requires a TrueDepth-supported front camera.")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
-                .background(.thinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                Spacer()
             }
-            .padding()
+            .faceworkScreenBackground()
             .navigationDestination(for: AppRoute.self) { route in
                 switch route {
                 case .home:
@@ -69,14 +72,24 @@ struct HomeView: View {
         }
     }
 
-    private func actionCard(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.headline)
-            Text(subtitle).foregroundStyle(.secondary)
+    private func actionCard(title: String, subtitle: String, icon: String) -> some View {
+        FaceworkCard {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 30)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(.headline)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }

@@ -14,11 +14,12 @@ struct LiveQCIndicatorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Circle()
-                    .fill(isValid ? .green : .red)
-                    .frame(width: 10, height: 10)
-                Text(isValid ? "QC Passing" : "QC Failing")
-                    .font(.headline)
+                FaceworkStatusBadge(
+                    title: isValid ? "QC Passing" : "QC Failing",
+                    systemImage: isValid ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
+                    color: isValid ? .green : .red
+                )
+                Spacer()
             }
             if !flags.isEmpty {
                 ForEach(flags) { flag in
@@ -29,8 +30,12 @@ struct LiveQCIndicatorView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(.separator).opacity(0.35), lineWidth: 1)
+        }
     }
 }

@@ -11,15 +11,35 @@ struct PreviousSessionsView: View {
     @StateObject private var viewModel = PreviousSessionsViewModel()
 
     var body: some View {
-        List(viewModel.sessionFolders, id: \.self) { url in
-            VStack(alignment: .leading) {
-                Text(url.lastPathComponent)
-                    .font(.headline)
-                Text(url.path)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        Group {
+            if viewModel.sessionFolders.isEmpty {
+                ContentUnavailableView(
+                    "No Previous Sessions",
+                    systemImage: "tray",
+                    description: Text("Completed local sessions will appear here.")
+                )
+            } else {
+                List(viewModel.sessionFolders, id: \.self) { url in
+                    HStack(spacing: 12) {
+                        Image(systemName: "folder.fill")
+                            .foregroundStyle(Color.accentColor)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(url.lastPathComponent)
+                                .font(.headline)
+                            Text(url.deletingLastPathComponent().lastPathComponent)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .scrollContentBackground(.hidden)
             }
         }
+        .faceworkScreenBackground()
         .navigationTitle("Previous Sessions")
         .onAppear {
             viewModel.loadSessions()

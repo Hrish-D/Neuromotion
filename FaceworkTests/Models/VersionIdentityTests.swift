@@ -43,7 +43,7 @@ final class VersionIdentityTests: XCTestCase {
             ResearchDataVersions.current,
             ResearchDataVersions(
                 rawDataSchemaVersion: "2.0.0",
-                analysisAlgorithmVersion: "0.1.0",
+                analysisAlgorithmVersion: "0.2.0",
                 captureProtocolVersion: "0.1.0",
                 meshCaptureVersion: "not-active",
                 landmarkConfigurationVersion: "not-active"
@@ -103,7 +103,7 @@ final class VersionIdentityTests: XCTestCase {
         XCTAssertEqual(configuration.neutralCaptureDuration, 2.5)
         XCTAssertEqual(configuration.minimumValidFramePercentage, 0.85)
         XCTAssertEqual(configuration.smoothingWindow, 5)
-        XCTAssertEqual(configuration.onsetSustainFrameCount, 3)
+        XCTAssertEqual(configuration.onsetSustainDurationSeconds, 0.3)
         XCTAssertEqual(configuration.maxFrameGapSeconds, 0.15)
         XCTAssertEqual(configuration.yawThresholdDegrees, 12)
         XCTAssertEqual(configuration.pitchThresholdDegrees, 12)

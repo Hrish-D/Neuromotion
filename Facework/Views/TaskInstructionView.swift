@@ -12,22 +12,27 @@ struct TaskInstructionView: View {
     let task: TaskType
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(task.displayName)
-                .font(.largeTitle)
-                .bold()
-            Text(task.instructionText)
-            Text("Hold duration: \(TaskConfiguration.default(for: task).holdDuration, specifier: "%.1f") s")
-            Text("Repetitions required: \(TaskConfiguration.default(for: task).repetitionsRequired)")
+        VStack(alignment: .leading, spacing: 20) {
+            FaceworkSectionHeader(task.displayName, subtitle: "Review the movement before beginning capture.")
+
+            FaceworkCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    Label(task.instructionText, systemImage: "figure.mind.and.body")
+                    Divider()
+                    Label("Hold for \(TaskConfiguration.default(for: task).holdDuration, specifier: "%.1f") seconds", systemImage: "timer")
+                    Label("\(TaskConfiguration.default(for: task).repetitionsRequired) repetitions", systemImage: "repeat")
+                }
+            }
 
             Button("Begin Task") {
                 appState.routeStack.append(.taskExecution(task))
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(FaceworkPrimaryButtonStyle())
 
             Spacer()
         }
         .padding()
+        .faceworkScreenBackground()
         .navigationTitle("Task Instructions")
     }
 }

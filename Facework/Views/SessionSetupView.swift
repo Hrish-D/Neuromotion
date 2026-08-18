@@ -33,9 +33,12 @@ struct SessionSetupView: View {
                     appState.currentSessionViewModel = CaptureSessionViewModel(metadata: metadata)
                     appState.routeStack.append(.readiness)
                 }
+                .buttonStyle(FaceworkPrimaryButtonStyle())
                 .disabled(!viewModel.canProceed)
             }
         }
         .navigationTitle("New Session Setup")
+        .scrollContentBackground(.hidden)
+        .faceworkScreenBackground()
     }
 }

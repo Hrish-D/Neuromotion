@@ -19,38 +19,46 @@ struct NeutralCalibrationView: View {
     private var captureVM: CaptureSessionViewModel? { appState.currentSessionViewModel }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Neutral Baseline")
-                .font(.title2)
-                .bold()
-            Text("Relax your face, keep your eyes open, and keep your mouth relaxed.")
-                .multilineTextAlignment(.center)
+        ScrollView {
+            VStack(spacing: 20) {
+                FaceworkSectionHeader("Neutral Calibration", subtitle: "Remain relaxed and face the camera.")
 
-            if let vm = captureVM {
-                FaceTrackingViewRepresentable(trackingManager: vm.trackingManager)
-                    .frame(height: 280)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                if let vm = captureVM {
+                    FaceTrackingViewRepresentable(trackingManager: vm.trackingManager)
+                        .frame(height: 280)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                LiveQCIndicatorView(flags: taskVM.liveQCFlags, isValid: taskVM.liveIsValid)
-                Text("Countdown: \(String(format: "%.1f", secondsRemaining)) s")
-                    .font(.headline)
+                    LiveQCIndicatorView(flags: taskVM.liveQCFlags, isValid: taskVM.liveIsValid)
 
-                HStack {
-                    Button(captureStarted ? "Capturing..." : "Start Baseline Capture") {
-                        beginCapture(with: vm)
+                    FaceworkCard {
+                        HStack {
+                            Text(captureStarted ? "Calibration in progress" : "Ready to calibrate")
+                                .font(.headline)
+                            Spacer()
+                            Text("\(String(format: "%.1f", secondsRemaining)) s")
+                                .font(.title2.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(captureStarted)
 
-                    Button("Retry") {
-                        reset()
+                    HStack {
+                        Button(captureStarted ? "Capturing..." : "Start Baseline Capture") {
+                            beginCapture(with: vm)
+                        }
+                        .buttonStyle(FaceworkPrimaryButtonStyle())
+                        .disabled(captureStarted)
+
+                        Button("Retry") {
+                            reset()
+                        }
+                        .buttonStyle(FaceworkSecondaryButtonStyle())
                     }
-                    .buttonStyle(.bordered)
                 }
+                Spacer()
             }
-            Spacer()
+            .padding()
         }
-        .padding()
+        .faceworkScreenBackground()
         .onAppear {
             captureVM?.startTracking()
         }

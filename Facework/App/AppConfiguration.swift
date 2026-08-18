@@ -17,7 +17,8 @@ struct AppConfiguration: Equatable {
     let minimumValidFramePercentage: Double = 0.85
     let smoothingEnabled: Bool = true
     let smoothingWindow: Int = 5
-    let onsetSustainFrameCount: Int = 3
+    /// Historical three-sample intent at approximately 10 Hz, expressed truthfully as time.
+    let onsetSustainDurationSeconds: TimeInterval = 0.3
     let maxFrameGapSeconds: Double = 0.15
 
     let yawThresholdDegrees: Double = 12

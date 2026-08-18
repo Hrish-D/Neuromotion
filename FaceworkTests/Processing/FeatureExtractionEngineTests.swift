@@ -13,7 +13,7 @@ final class FeatureExtractionEngineTests: XCTestCase {
         XCTAssertNil(metrics.onsetTimeLeft)
     }
 
-    func testSignalSustainedForThreeSamplesHasKnownOnsetPeakAndTimeToPeak() {
+    func testSignalSustainedForConfiguredDurationHasKnownOnsetPeakAndTimeToPeak() {
         let metrics = derive(left: [0, 0, 1, 1, 1, 1, 1])
         assertOptionalEqual(metrics.onsetTimeLeft, 0.2, accuracy: 0.000_001)
         assertOptionalEqual(metrics.peakAmplitudeLeft, 1, accuracy: 0.000_001)
@@ -25,10 +25,11 @@ final class FeatureExtractionEngineTests: XCTestCase {
         XCTAssertNil(metrics.onsetTimeLeft)
     }
 
-    func testCurrentEndOfArrayBehaviorAcceptsIncompleteSustain() {
-        // Characterization: one qualifying final sample is incorrectly accepted today.
+    func testQualifyingFinalSampleWithoutObservedDurationDoesNotEstablishOnset() {
+        // Before Prompt 8 this expected 0.4 because the truncated sample range was accepted.
+        // Timestamp-aware sustain cannot infer unobserved future qualifying duration.
         let metrics = derive(left: [0, 0, 0, 0, 1])
-        assertOptionalEqual(metrics.onsetTimeLeft, 0.4, accuracy: 0.000_001)
+        XCTAssertNil(metrics.onsetTimeLeft)
     }
 
     func testKnownHoldStabilityUsesAllSmoothedValuesAtOrAboveHoldThreshold() {
