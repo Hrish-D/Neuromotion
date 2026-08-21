@@ -6,7 +6,7 @@ final class BaselineCalibratorTests: XCTestCase {
 
     func testArithmeticMeanUsesValidNeutralFrames() {
         let result = calibrator.computeBaseline(from: TestFixtures.neutralFrames(values: [0.1, 0.2, 0.3]))
-        assertOptionalEqual(result["mouthSmileLeft"], 0.2, accuracy: 0.000_001)
+        assertOptionalEqual(result?["mouthSmileLeft"], 0.2, accuracy: 0.000_001)
     }
 
     func testInvalidFramesAreExcludedWhenAValidFrameExists() {
@@ -14,16 +14,15 @@ final class BaselineCalibratorTests: XCTestCase {
             TestFixtures.frame(index: 0, raw: ["a": 1], valid: false),
             TestFixtures.frame(index: 1, raw: ["a": 3], valid: true)
         ]
-        XCTAssertEqual(calibrator.computeBaseline(from: frames)["a"], 3)
+        XCTAssertEqual(calibrator.computeBaseline(from: frames)?["a"], 3)
     }
 
-    func testCurrentBehaviorFallsBackToInvalidFramesWhenNoValidNeutralFramesExist() {
-        // Characterization: this scientifically undesirable fallback is expected to change later.
+    func testInvalidFramesDoNotProduceFallbackBaseline() {
         let frames = [
             TestFixtures.frame(index: 0, raw: ["a": 1], valid: false),
             TestFixtures.frame(index: 1, raw: ["a": 3], valid: false)
         ]
-        XCTAssertEqual(calibrator.computeBaseline(from: frames)["a"], 2)
+        XCTAssertNil(calibrator.computeBaseline(from: frames))
     }
 
     func testMissingBlendshapeKeyUsesOnlyPresentValues() {
@@ -31,7 +30,7 @@ final class BaselineCalibratorTests: XCTestCase {
             TestFixtures.frame(index: 0, raw: ["a": 2]),
             TestFixtures.frame(index: 1, raw: [:])
         ]
-        XCTAssertEqual(calibrator.computeBaseline(from: frames)["a"], 2)
+        XCTAssertEqual(calibrator.computeBaseline(from: frames)?["a"], 2)
     }
 
     func testUnequalKeySetsAreAveragedIndependently() {
@@ -42,8 +41,8 @@ final class BaselineCalibratorTests: XCTestCase {
         XCTAssertEqual(calibrator.computeBaseline(from: frames), ["a": 1, "b": 4])
     }
 
-    func testEmptyInputProducesEmptyBaseline() {
-        XCTAssertTrue(calibrator.computeBaseline(from: []).isEmpty)
+    func testEmptyInputProducesNoBaseline() {
+        XCTAssertNil(calibrator.computeBaseline(from: []))
     }
 
     func testNormalizationSubtractsBaselineAndUnionsKeys() {

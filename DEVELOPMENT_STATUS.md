@@ -28,6 +28,15 @@ remain observed above threshold for 0.3 seconds of source timestamp time. A
 small deterministic timing utility also centralizes positive interval and
 elapsed-duration validation without inventing replacement timestamps.
 
+Prompt 9 separates hard acquisition failures from diagnostic warnings.
+`NeutralCalibrationEvaluator` produces an explicit success or failure before
+the existing arithmetic-mean baseline calculation, and
+`SessionValidityEvaluator` evaluates calibration, protocol completeness, and
+task usability separately from per-frame QC. Neutral attempts now retain an
+ordered, unsampled acquisition-event stream alongside the unchanged sampled
+scientific frames, so face removal cannot disappear behind the 0.1-second
+scientific sampling gate.
+
 The primary flow is setup, device readiness, neutral calibration, six guided
 movement tasks, session summary, and export.
 
@@ -38,6 +47,8 @@ movement tasks, session summary, and export.
 - ARKit face preview, face-anchor updates, selected blend-shape capture, and
   optional face-mesh display on supported hardware.
 - Neutral blend-shape baseline capture and baseline subtraction.
+- Explicit neutral-calibration failure and retry without silently averaging
+  hard-rejected observations.
 - Observation-driven scientific capture at a minimum source-time interval of
   0.1 seconds, with timers retained only for countdown and phase boundaries.
 - Three repetitions for each configured movement task.
@@ -52,7 +63,7 @@ movement tasks, session summary, and export.
 - JSON, per-frame CSV, per-repetition CSV, validation-image manifest, JPEG
   validation images, ZIP packaging, and share-sheet presentation.
 - Bundle-derived marketing/build identity and versioned research metadata:
-  raw schema `2.0.0`, analysis algorithm `0.2.0`, and capture protocol `0.1.0`.
+  raw schema `2.0.0`, analysis algorithm `0.3.0`, and capture protocol `0.2.0`.
 - Independent immutable raw acquisition persistence in `raw_frames.json`,
   including source timestamps, AR coefficients, copied transform and pose,
   face observation state/count/framing placeholders, recording context,
@@ -84,7 +95,14 @@ movement tasks, session summary, and export.
   implemented.
 - Symmetry compares independently selected left and right peak coefficients,
   not necessarily simultaneous measurements at one shared peak frame.
-- Neutral calibration falls back to all neutral frames when none pass QC.
+- Neutral calibration requires uninterrupted trustworthy tracking evidence
+  spanning at least 2.35 seconds: the configured 2.5-second neutral interval
+  minus the existing 0.15-second maximum accepted source-timestamp gap. This
+  uses ordered source timestamps, not a frame count or assumed 10 Hz rate.
+  Any observed no-face, multiple-face, limited-camera-tracking, missing-signal,
+  non-monotonic-timestamp, or excessive-gap event fails the attempt. The strict
+  interruption policy requires physical characterization for sensitivity to
+  isolated one-event tracking losses; no valid-frame percentage was invented.
 - Configured rest duration and contiguous hold-duration validation are not
   enforced by the current task flow.
 - Compatibility `FrameAnalysis.smoothedBlendshapes` still duplicates normalized
@@ -97,8 +115,14 @@ movement tasks, session summary, and export.
 - Validation-image capture still reads `ARSession.currentFrame` separately
   from the accepted scientific observation, so exact image/measurement
   synchronization is not guaranteed.
-- Session-level QC currently treats any non-empty capture as valid for
-  analysis.
+- `facialActivationTooHighAtNeutral` remains a diagnostic warning at its
+  existing strict `> 0.15` boundary. It does not alone invalidate trustworthy
+  acquisition because stable non-zero ARKit coefficients may represent
+  anatomy, resting asymmetry, pathology, or model bias.
+- Session validity requires established calibration, scientific frames for all
+  six configured tasks, all configured repetition attempts, and at least one
+  valid repetition per task. This permits an isolated failed repetition while
+  rejecting missing or wholly unusable tasks.
 - Observation timestamps sample `ARSession.currentFrame.timestamp` once per
   callback, with `CACurrentMediaTime()` as fallback; they are not timestamps
   intrinsic to `ARFaceAnchor`.
@@ -133,10 +157,13 @@ Raw schema `2.0.0` identifies sessions with the independent authoritative raw
 record. Existing metadata that explicitly records raw schema `1.0.0` retains
 that identity, and metadata predating version fields remains `legacy-unknown`.
 Legacy flat `FrameCapture` JSON still decodes without inventing observation
-facts that were not historically stored. New analysis uses `0.2.0`; historical
+facts that were not historically stored. New analysis uses `0.3.0`; historical
 sessions explicitly marked `0.1.0` retain that identity and unversioned sessions
 remain `legacy-unknown`. Raw schema remains `2.0.0`, capture protocol remains
-`0.1.0`, and mesh and landmark states remain `not-active`.
+`0.2.0`, and mesh and landmark states remain `not-active`. Historical analysis
+`0.2.0` and capture protocol `0.1.0` values remain unchanged when decoded. The
+analysis increment records warning-aware calibration and protocol validity;
+the capture-protocol increment records mandatory retry after failed calibration.
 
 ## Test status
 
@@ -165,9 +192,15 @@ Timestamp tests cover duration-based onset with regular, irregular, mixed, and
 approximately 8.57 Hz cadence; floating-point boundaries; invalid intervals;
 and existing real-delta velocity semantics. The conservative UI pass retains
 the five established UI test methods.
-The suite contains 148 unit-test methods and 5 UI-test methods; two existing
-`CaptureSessionViewModel` checks remain simulator-skipped because that view
-model eagerly constructs `ARSession`.
+Prompt 9 adds deterministic coverage for warning-versus-hard failure
+semantics, removal of the invalid-neutral fallback, irregular-time calibration
+diagnostics, ordered unsampled face-loss events, full-duration evidence,
+retry isolation, raw-frame immutability, protocol completeness, live
+acquisition-event priority over stale sampled-frame QC, and the
+17/18-valid-repetition case. The suite now contains 169 unit tests: 167 pass
+and two existing direct `CaptureSessionViewModel` checks skip in the simulator
+because that view model eagerly constructs `ARSession`. All five UI-test
+methods pass across six executions.
 
 Repository search confirmed that `AppConfiguration` is never encoded or
 decoded. Its unused `Codable` conformance and hardcoded app-version field were
@@ -208,8 +241,33 @@ outside version control.
 
 ## Next implementation phase
 
-Prompt 9: baseline/calibration and capture-QC reliability, followed by
-measurement/image synchronization before major custom mesh or model work.
+Measurement / image synchronization.
+
+Prompt 9 calibration/QC is complete in code pending physical retry
+verification. Zero eligible frames now fail; no zero or hard-invalid fallback
+baseline is produced; task navigation waits for explicit calibration success;
+and retry uses a fresh candidate set. The physical failure in which a face was
+briefly visible and then absent was traced to a no-face transition being able
+to fall inside the scientific sampling gate, followed by an evaluator that
+accepted any remaining eligible frame. Attempt events now bypass that sampling
+gate for calibration evidence only, and the evaluator requires the continuous
+2.35-second trustworthy interval described above. Live calibration status is
+published through the calibration view's observed view model and prioritizes
+the latest ordered attempt event, so no-face, multiple-face, and limited
+tracking states replace stale sampled-frame `QC Passing` immediately. Failed-attempt frames remain truthful historical
+captures in the in-memory session record, but Prompt 9 adds no persisted
+attempt-group schema. The formerly incomplete physical run with four missing
+tasks would now fail. A complete 17/18-valid run remains valid when all
+configured attempts exist and each task retains at least one valid repetition.
+
+Prompt 8 timestamp-aware processing remains active. Physical cadence remains
+variable around 8.57–10 Hz, five-sample smoothing is unchanged, and symmetry,
+signed velocity, and hold-stability interpretation remain future scientific
+issues. Exact measurement/image synchronization, absolute image paths, and the
+`private` ZIP-prefix issue remain unresolved. Mesh and landmarks remain
+inactive; empirical calibration thresholds require broader participant data;
+no clinical validation is claimed. The Prompt 8 capture-button label overlap
+was corrected without changing actions, timing, or capture state.
 
 ## Presentation status
 

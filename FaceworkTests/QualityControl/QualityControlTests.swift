@@ -84,7 +84,7 @@ final class QualityControlTests: XCTestCase {
     }
 
     func testQualityControlEngineNeutralActivationBoundaryIsExclusive() {
-        func result(_ activation: Double) -> (flags: [QCFlag], valid: Bool) {
+        func result(_ activation: Double) -> QualityControlEvaluation {
             QualityControlEngine().evaluate(
                 current: QualityControlContext(
                     faceCount: 1, trackingState: "Tracking",
@@ -96,7 +96,26 @@ final class QualityControlTests: XCTestCase {
             )
         }
         XCTAssertFalse(result(0.15).flags.contains(.facialActivationTooHighAtNeutral))
-        XCTAssertTrue(result(0.151).flags.contains(.facialActivationTooHighAtNeutral))
+        let warningResult = result(0.151)
+        XCTAssertTrue(warningResult.flags.contains(.facialActivationTooHighAtNeutral))
+        XCTAssertEqual(warningResult.warningFlags, [.facialActivationTooHighAtNeutral])
+        XCTAssertTrue(warningResult.invalidatingFlags.isEmpty)
+        XCTAssertTrue(warningResult.valid)
+    }
+
+    func testNeutralActivationWarningDoesNotOverrideHardTrackingFailure() {
+        let result = QualityControlEngine().evaluate(
+            current: QualityControlContext(
+                faceCount: 0, trackingState: "limited",
+                faceCenter: CGPoint(x: 0.5, y: 0.5), faceScale: 0.35,
+                pose: HeadPose(yawDegrees: 0, pitchDegrees: 0, rollDegrees: 0),
+                rawBlendshapes: ["a": 0.151], timestamp: 1, isNeutralPhase: true
+            ),
+            previous: nil
+        )
+        XCTAssertTrue(result.warningFlags.contains(.facialActivationTooHighAtNeutral))
+        XCTAssertTrue(result.invalidatingFlags.contains(.trackingLost))
+        XCTAssertFalse(result.valid)
     }
 
     func testQualityControlEngineOcclusionUsesStrictLowerBoundary() {

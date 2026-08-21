@@ -24,6 +24,7 @@ nonisolated final class FaceObservationCollector {
     private struct ActiveCollection {
         let recordingID: UUID
         let mode: FaceObservationCollectionMode
+        let eventHandler: ObservationHandler?
         let handler: ObservationHandler
         var lastAcceptedTimestamp: TimeInterval?
     }
@@ -50,12 +51,14 @@ nonisolated final class FaceObservationCollector {
     @discardableResult
     func start(
         mode: FaceObservationCollectionMode,
+        eventHandler: ObservationHandler? = nil,
         handler: @escaping ObservationHandler
     ) -> UUID {
         let recordingID = UUID()
         activeCollection = ActiveCollection(
             recordingID: recordingID,
             mode: mode,
+            eventHandler: eventHandler,
             handler: handler,
             lastAcceptedTimestamp: nil
         )
@@ -73,6 +76,17 @@ nonisolated final class FaceObservationCollector {
     private func receive(_ observation: FaceTrackingObservation) {
         guard var activeCollection else { return }
 
+        let collectedObservation = CollectedFaceObservation(
+            recordingID: activeCollection.recordingID,
+            mode: activeCollection.mode,
+            observation: observation,
+            cameraTrackingState: cameraTrackingState()
+        )
+
+        // Attempt-level state transitions must remain observable even when the
+        // scientific 0.1-second frame-sampling gate rejects this observation.
+        activeCollection.eventHandler?(collectedObservation)
+
         if let lastTimestamp = activeCollection.lastAcceptedTimestamp,
            observation.sourceTimestamp - lastTimestamp + 1e-9 < minimumSampleInterval {
             return
@@ -81,13 +95,6 @@ nonisolated final class FaceObservationCollector {
         activeCollection.lastAcceptedTimestamp = observation.sourceTimestamp
         self.activeCollection = activeCollection
 
-        activeCollection.handler(
-            CollectedFaceObservation(
-                recordingID: activeCollection.recordingID,
-                mode: activeCollection.mode,
-                observation: observation,
-                cameraTrackingState: cameraTrackingState()
-            )
-        )
+        activeCollection.handler(collectedObservation)
     }
 }

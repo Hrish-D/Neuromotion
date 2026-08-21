@@ -21,7 +21,7 @@ struct SessionSummaryView: View {
                     FaceworkCard {
                         VStack(alignment: .leading, spacing: 10) {
                             FaceworkStatusBadge(
-                                title: summary.overallQC.validForAnalysis ? "Valid for analysis" : "Review required",
+                                title: statusTitle(for: summary.overallQC),
                                 systemImage: summary.overallQC.validForAnalysis ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
                                 color: summary.overallQC.validForAnalysis ? .green : .orange
                             )
@@ -126,6 +126,15 @@ struct SessionSummaryView: View {
         [metrics.peakAmplitudeLeft, metrics.peakAmplitudeRight]
             .compactMap { $0 }
             .max()
+    }
+
+    private func statusTitle(for qc: QCSummary) -> String {
+        if qc.validForAnalysis { return "Valid for analysis" }
+        if qc.reasons.contains(.calibrationUnavailable) { return "Calibration unavailable" }
+        if qc.reasons.contains(.missingRequiredTask) || qc.reasons.contains(.incompleteProtocol) {
+            return "Session incomplete"
+        }
+        return "Review required"
     }
 }
 

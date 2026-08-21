@@ -77,16 +77,17 @@ final class RepetitionAndTaskAnalyzerTests: XCTestCase {
         XCTAssertEqual(summary.averageMetrics.peakAmplitudeLeft, 1)
     }
 
-    func testCurrentSessionSummaryTreatsAnyFrameAsSuccessful() throws {
+    func testSessionSummaryDoesNotTreatAnyFrameAsSuccessful() throws {
         try skipCaptureSessionViewModelOnSimulator()
-        // Characterization: session QC is currently too permissive and will change later.
         let viewModel = CaptureSessionViewModel(metadata: TestFixtures.metadata())
         viewModel.allFrames = [
             TestFixtures.frame(flags: [.trackingLost], valid: false)
         ]
         let qc = viewModel.buildSessionSummary().overallQC
-        XCTAssertTrue(qc.overallPassed)
-        XCTAssertTrue(qc.validForAnalysis)
+        XCTAssertFalse(qc.overallPassed)
+        XCTAssertFalse(qc.validForAnalysis)
+        XCTAssertTrue(qc.reasons.contains(.calibrationUnavailable))
+        XCTAssertTrue(qc.reasons.contains(.missingRequiredTask))
         XCTAssertEqual(qc.percentFramesPassing, 0)
     }
 

@@ -13,6 +13,7 @@ final class CaptureSessionViewModel: ObservableObject {
     @Published var readinessStatus = DeviceReadinessStatus()
     @Published var baselineFrames: [FrameCapture] = []
     @Published var baselineValues: [String: Double] = [:]
+    @Published private(set) var calibrationResult: NeutralCalibrationResult?
     @Published var currentTaskIndex: Int = 0
     @Published var repetitionsByTask: [TaskType: [RepetitionResult]] = [:]
     @Published var allFrames: [FrameCapture] = []
@@ -28,7 +29,8 @@ final class CaptureSessionViewModel: ObservableObject {
     let tasks: [TaskType] = [.browRaise, .eyeClosure, .smileTeeth, .smileClosed, .lipPucker, .cheekPuff]
     let taskConfigurations: [TaskType: TaskConfiguration] = Dictionary(uniqueKeysWithValues: TaskType.allCases.map { ($0, .default(for: $0)) })
 
-    private let calibrator = BaselineCalibrator()
+    private let calibrationEvaluator = NeutralCalibrationEvaluator()
+    private let sessionValidityEvaluator = SessionValidityEvaluator()
     private let taskAnalyzer = TaskAnalyzer()
     private let sessionStore = SessionStore()
 
@@ -60,10 +62,30 @@ final class CaptureSessionViewModel: ObservableObject {
         trackingManager.stop()
     }
 
-    func updateBaseline(frames: [FrameCapture]) {
-        baselineFrames = frames
-        baselineValues = calibrator.computeBaseline(from: frames)
+    @discardableResult
+    func updateBaseline(
+        frames: [FrameCapture],
+        attempt: NeutralCalibrationAttemptEvidence
+    ) -> NeutralCalibrationResult {
         allFrames.append(contentsOf: frames)
+        let result = calibrationEvaluator.evaluate(frames: frames, attempt: attempt)
+        calibrationResult = result
+
+        switch result {
+        case .success(let baseline, let eligibleFrames, _):
+            baselineFrames = eligibleFrames
+            baselineValues = baseline
+        case .failure:
+            baselineFrames = []
+            baselineValues = [:]
+        }
+        return result
+    }
+
+    func prepareCalibrationRetry() {
+        calibrationResult = nil
+        baselineFrames = []
+        baselineValues = [:]
     }
 
     func store(repetition: RepetitionResult, frames: [FrameCapture]) {
@@ -79,12 +101,12 @@ final class CaptureSessionViewModel: ObservableObject {
         let taskSummaries = tasks.map { task in
             taskAnalyzer.summarize(task: task, repetitions: repetitionsByTask[task] ?? [])
         }
-        let validFrames = allFrames.filter(\.isValidFrame).count
-        let overallQC = QCSummary(
-            overallPassed: !allFrames.isEmpty,
-            reasons: [],
-            percentFramesPassing: allFrames.isEmpty ? 0 : Double(validFrames) / Double(allFrames.count),
-            validForAnalysis: !allFrames.isEmpty
+        let overallQC = sessionValidityEvaluator.evaluate(
+            calibrationEstablished: calibrationResult?.isSuccessful == true,
+            requiredTasks: tasks,
+            configurations: taskConfigurations,
+            repetitionsByTask: repetitionsByTask,
+            frames: allFrames
         )
         return SessionSummary(sessionMetadata: metadata, taskSummaries: taskSummaries, exportPaths: exportPaths, overallQC: overallQC)
     }

@@ -25,13 +25,13 @@ final class FaceObservationCollectorTests: XCTestCase {
     func testTaskCollectionCarriesTaskAndRepetitionMetadataIntoFrame() {
         let context = makeContext()
         let viewModel = TaskExecutionViewModel()
-        context.start(mode: .task(task: .smileTeeth, repetitionIndex: 3)) {
+        context.start(mode: .task(task: .smileTeeth, repetitionIndex: 3), handler: {
             viewModel.appendLiveFrame(
                 collectedObservation: $0,
                 baseline: [:],
                 isNeutralPhase: false
             )
-        }
+        })
 
         context.provider.emit(observation(timestamp: 2))
 
@@ -50,13 +50,13 @@ final class FaceObservationCollectorTests: XCTestCase {
             center: CGPoint(x: 0.5, y: 0.5),
             scale: 0.35
         )
-        context.start(mode: .task(task: .cheekPuff, repetitionIndex: 2)) {
+        context.start(mode: .task(task: .cheekPuff, repetitionIndex: 2), handler: {
             viewModel.appendLiveFrame(
                 collectedObservation: $0,
                 baseline: ["jawOpen": 0.02],
                 isNeutralPhase: false
             )
-        }
+        })
 
         context.provider.emit(source)
 
@@ -139,6 +139,61 @@ final class FaceObservationCollectorTests: XCTestCase {
         XCTAssertEqual(context.samples.map(\.observation.sourceTimestamp), [50, 50.11])
     }
 
+    func testAttemptEventsReceiveNoFaceTransitionBeforeScientificSamplingGate() {
+        let context = makeContext()
+        context.start(mode: .neutral)
+
+        context.provider.emit(observation(timestamp: 1))
+        context.provider.emit(unavailableObservation(timestamp: 1.01, state: .noFace, faceCount: 0))
+
+        XCTAssertEqual(context.samples.map(\.observation.trackingState), [.tracking])
+        XCTAssertEqual(context.events.map(\.observation.trackingState), [.tracking, .noFace])
+    }
+
+    func testUnsampledCalibrationFaceLossOverridesPassingQCAndReacquisitionRestoresIt() {
+        let context = makeContext()
+        let viewModel = TaskExecutionViewModel()
+        context.start(mode: .neutral, eventHandler: viewModel.receiveCalibrationEvent) { sample in
+            viewModel.appendLiveFrame(collectedObservation: sample, baseline: [:], isNeutralPhase: true)
+        }
+
+        context.provider.emit(observation(timestamp: 1, blendshapes: ["jawOpen": 0.1]))
+        XCTAssertTrue(viewModel.liveIsValid)
+        XCTAssertEqual(viewModel.calibrationLiveStatus(phase: .capturing), .passing)
+
+        context.provider.emit(unavailableObservation(timestamp: 1.01, state: .noFace, faceCount: 0))
+        XCTAssertEqual(viewModel.calibrationLiveStatus(phase: .capturing), .noFace)
+        XCTAssertEqual(viewModel.captureFrames.count, 1, "Unsampled live events must not fabricate frames")
+
+        context.provider.emit(observation(timestamp: 1.02, blendshapes: ["jawOpen": 0.1]))
+        XCTAssertEqual(viewModel.calibrationLiveStatus(phase: .capturing), .passing)
+        XCTAssertEqual(viewModel.captureFrames.count, 1, "Reacquisition inside the gate remains UI-only")
+    }
+
+    func testMultipleFacesAndLimitedTrackingOverridePassingQC() {
+        let multipleFaces = NeutralCalibrationEvent(collectedObservation: collected(
+            observation: unavailableObservation(timestamp: 1, state: .multipleFaces, faceCount: 2),
+            cameraTrackingState: "Tracking"
+        ))
+        XCTAssertEqual(
+            NeutralCalibrationLiveStatus.resolve(
+                phase: .capturing, latestEvent: multipleFaces, latestFrameIsValid: true
+            ),
+            .multipleFaces
+        )
+
+        let limitedTracking = NeutralCalibrationEvent(collectedObservation: collected(
+            observation: observation(timestamp: 1.1),
+            cameraTrackingState: "limited(excessiveMotion)"
+        ))
+        XCTAssertEqual(
+            NeutralCalibrationLiveStatus.resolve(
+                phase: .capturing, latestEvent: limitedTracking, latestFrameIsValid: true
+            ),
+            .trackingInterrupted
+        )
+    }
+
     func testOneObservationCannotCreateDuplicateFrame() {
         let context = makeContext()
         context.start(mode: .neutral)
@@ -151,13 +206,13 @@ final class FaceObservationCollectorTests: XCTestCase {
     func testFrameConstructionDoesNotUseManagerCompatibilityValues() {
         let context = makeContext(trackingState: "limited")
         let viewModel = TaskExecutionViewModel()
-        context.start(mode: .neutral) {
+        context.start(mode: .neutral, handler: {
             viewModel.appendLiveFrame(
                 collectedObservation: $0,
                 baseline: [:],
                 isNeutralPhase: true
             )
-        }
+        })
 
         context.provider.emit(
             observation(
@@ -175,13 +230,13 @@ final class FaceObservationCollectorTests: XCTestCase {
     func testFaceLossAndMultipleFacesKeepExistingQCSemantics() {
         let context = makeContext()
         let viewModel = TaskExecutionViewModel()
-        context.start(mode: .neutral) {
+        context.start(mode: .neutral, handler: {
             viewModel.appendLiveFrame(
                 collectedObservation: $0,
                 baseline: [:],
                 isNeutralPhase: true
             )
-        }
+        })
 
         context.provider.emit(unavailableObservation(timestamp: 1, state: .noFace, faceCount: 0))
         context.provider.emit(unavailableObservation(timestamp: 1.1, state: .multipleFaces, faceCount: 2))
@@ -286,6 +341,18 @@ final class FaceObservationCollectorTests: XCTestCase {
             faceScale: 0
         )
     }
+
+    private func collected(
+        observation: FaceTrackingObservation,
+        cameraTrackingState: String
+    ) -> CollectedFaceObservation {
+        CollectedFaceObservation(
+            recordingID: TestFixtures.deterministicUUID(999),
+            mode: .neutral,
+            observation: observation,
+            cameraTrackingState: cameraTrackingState
+        )
+    }
 }
 
 @MainActor
@@ -298,6 +365,10 @@ private struct CollectorTestContext {
         sampleStore.samples
     }
 
+    var events: [CollectedFaceObservation] {
+        sampleStore.events
+    }
+
     init(trackingState: String) {
         collector = FaceObservationCollector(
             provider: provider,
@@ -308,9 +379,13 @@ private struct CollectorTestContext {
     @discardableResult
     func start(
         mode: FaceObservationCollectionMode,
+        eventHandler: ((CollectedFaceObservation) -> Void)? = nil,
         handler: ((CollectedFaceObservation) -> Void)? = nil
     ) -> UUID {
-        collector.start(mode: mode) { sample in
+        collector.start(mode: mode, eventHandler: { event in
+            sampleStore.events.append(event)
+            eventHandler?(event)
+        }) { sample in
             sampleStore.samples.append(sample)
             handler?(sample)
         }
@@ -319,4 +394,5 @@ private struct CollectorTestContext {
 
 nonisolated private final class CollectorSampleStore: @unchecked Sendable {
     @MainActor var samples: [CollectedFaceObservation] = []
+    @MainActor var events: [CollectedFaceObservation] = []
 }

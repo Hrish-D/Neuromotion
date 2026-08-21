@@ -79,8 +79,11 @@ struct TaskExecutionView: View {
                     }
 
                     HStack {
-                        Button(isCapturing ? "Capturing..." : "Capture Repetition") {
+                        Button {
                             startCapture(using: vm)
+                        } label: {
+                            Text(isCapturing ? "Capturing..." : "Capture Repetition")
+                                .transaction { $0.animation = nil }
                         }
                         .buttonStyle(FaceworkPrimaryButtonStyle())
                         .disabled(isCapturing)

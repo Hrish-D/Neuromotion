@@ -57,14 +57,15 @@ final class SessionMetadataCompatibilityTests: XCTestCase {
         XCTAssertNil(object["wasLoadedFromLegacySchema"])
     }
 
-    func testHistoricalAnalysisVersionIsNotUpgradedWhenDecoded() throws {
+    func testHistoricalAnalysisAndCaptureVersionsAreNotUpgradedWhenDecoded() throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: encoder.encode(TestFixtures.metadata()))
                 as? [String: Any]
         )
-        object["analysisAlgorithmVersion"] = "0.1.0"
+        object["analysisAlgorithmVersion"] = "0.2.0"
+        object["captureProtocolVersion"] = "0.1.0"
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -73,7 +74,8 @@ final class SessionMetadataCompatibilityTests: XCTestCase {
             from: JSONSerialization.data(withJSONObject: object)
         )
 
-        XCTAssertEqual(decoded.analysisAlgorithmVersion, "0.1.0")
+        XCTAssertEqual(decoded.analysisAlgorithmVersion, "0.2.0")
+        XCTAssertEqual(decoded.captureProtocolVersion, "0.1.0")
         XCTAssertFalse(decoded.wasLoadedFromLegacySchema)
     }
 

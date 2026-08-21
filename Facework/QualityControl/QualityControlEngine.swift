@@ -19,13 +19,21 @@ struct QualityControlContext {
     let isNeutralPhase: Bool
 }
 
+struct QualityControlEvaluation: Equatable {
+    let flags: [QCFlag]
+    let invalidatingFlags: [QCFlag]
+    let warningFlags: [QCFlag]
+
+    var valid: Bool { invalidatingFlags.isEmpty }
+}
+
 struct QualityControlEngine {
     private let poseValidator = PoseValidator()
     private let framingValidator = FramingValidator()
     private let trackingValidator = TrackingValidator()
     private let plausibilityValidator = SignalPlausibilityValidator()
 
-    func evaluate(current: QualityControlContext, previous: FrameCapture?) -> (flags: [QCFlag], valid: Bool) {
+    func evaluate(current: QualityControlContext, previous: FrameCapture?) -> QualityControlEvaluation {
         var flags: [QCFlag] = []
         flags.append(contentsOf: trackingValidator.validate(faceCount: current.faceCount, trackingDescription: current.trackingState))
         flags.append(contentsOf: framingValidator.validate(center: current.faceCenter, scale: current.faceScale))
@@ -44,6 +52,11 @@ struct QualityControlEngine {
             flags.append(.likelyOcclusion)
         }
 
-        return (Array(Set(flags)), flags.isEmpty)
+        let uniqueFlags = Array(Set(flags))
+        return QualityControlEvaluation(
+            flags: uniqueFlags,
+            invalidatingFlags: uniqueFlags.filter(\.invalidatesFrame),
+            warningFlags: uniqueFlags.filter { !$0.invalidatesFrame }
+        )
     }
 }

@@ -18,6 +18,7 @@ final class TaskExecutionViewModel: ObservableObject {
     @Published var debugValues: [String: Double] = [:]
     @Published var normalizedValues: [String: Double] = [:]
     @Published var captureFrames: [FrameCapture] = []
+    @Published private(set) var latestCalibrationEvent: NeutralCalibrationEvent?
 
     private let frameProcessor = FrameProcessor()
     private let analyzer = RepetitionAnalyzer()
@@ -33,7 +34,20 @@ final class TaskExecutionViewModel: ObservableObject {
         debugValues = [:]
         normalizedValues = [:]
         captureFrames = []
+        latestCalibrationEvent = nil
         frameIndex = 0
+    }
+
+    func receiveCalibrationEvent(_ collectedObservation: CollectedFaceObservation) {
+        latestCalibrationEvent = NeutralCalibrationEvent(collectedObservation: collectedObservation)
+    }
+
+    func calibrationLiveStatus(phase: NeutralCalibrationPhase) -> NeutralCalibrationLiveStatus {
+        NeutralCalibrationLiveStatus.resolve(
+            phase: phase,
+            latestEvent: latestCalibrationEvent,
+            latestFrameIsValid: liveIsValid
+        )
     }
 
     func appendLiveFrame(task: TaskType,

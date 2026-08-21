@@ -22,7 +22,17 @@ enum QCFlag: String, Codable, CaseIterable, Identifiable, Sendable {
     case holdNotMaintained
     case lowValidFramePercentage
     case notEnoughFrames
+    case calibrationUnavailable
+    case incompleteProtocol
+    case missingRequiredTask
+    case insufficientValidRepetitions
     case unknown
 
     var id: String { rawValue }
+
+    /// Diagnostic flags remain observable but do not, by themselves, make an
+    /// acquired frame unusable. All other flags retain their existing hard-QC role.
+    var invalidatesFrame: Bool {
+        self != .facialActivationTooHighAtNeutral
+    }
 }
