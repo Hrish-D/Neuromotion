@@ -106,7 +106,8 @@ struct NeutralCalibrationView: View {
             taskVM.appendLiveFrame(
                 collectedObservation: collectedObservation,
                 baseline: [:],
-                isNeutralPhase: true
+                isNeutralPhase: true,
+                rawCaptureHandler: vm.recordMesh
             )
             collectedFrames = taskVM.captureFrames
         }

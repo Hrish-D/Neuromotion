@@ -16,7 +16,24 @@ struct CollectedFaceObservation {
     let mode: FaceObservationCollectionMode
     let observation: FaceTrackingObservation
     let validationImageSource: ValidationImageSource?
+    let faceMeshSnapshot: FaceMeshSnapshot?
     let cameraTrackingState: String
+
+    init(
+        recordingID: UUID,
+        mode: FaceObservationCollectionMode,
+        observation: FaceTrackingObservation,
+        validationImageSource: ValidationImageSource?,
+        faceMeshSnapshot: FaceMeshSnapshot? = nil,
+        cameraTrackingState: String
+    ) {
+        self.recordingID = recordingID
+        self.mode = mode
+        self.observation = observation
+        self.validationImageSource = validationImageSource
+        self.faceMeshSnapshot = faceMeshSnapshot
+        self.cameraTrackingState = cameraTrackingState
+    }
 }
 
 nonisolated final class FaceObservationCollector {
@@ -83,6 +100,7 @@ nonisolated final class FaceObservationCollector {
             mode: activeCollection.mode,
             observation: observation,
             validationImageSource: synchronizedObservation.validationImageSource,
+            faceMeshSnapshot: synchronizedObservation.faceMeshSnapshot,
             cameraTrackingState: synchronizedObservation.frameCameraTrackingState
                 ?? cameraTrackingState()
         )

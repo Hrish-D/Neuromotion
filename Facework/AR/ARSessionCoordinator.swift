@@ -38,6 +38,10 @@ final class ARSessionCoordinator: NSObject, ARSessionDelegate {
                     sourceTimestamp: timestamp,
                     payload: .pixelBuffer(frame.capturedImage)
                 ),
+                faceMeshSnapshot: makeMeshSnapshot(
+                    geometry: faceAnchor.geometry,
+                    sourceTimestamp: timestamp
+                ),
                 frameCameraTrackingState: cameraTrackingState
             )
         } else if faceAnchors.count > 1 {
@@ -68,14 +72,38 @@ final class ARSessionCoordinator: NSObject, ARSessionDelegate {
     func process(
         _ event: FaceTrackingCallbackEvent,
         validationImageSource: ValidationImageSource? = nil,
+        faceMeshSnapshot: FaceMeshSnapshot? = nil,
         frameCameraTrackingState: String? = nil
     ) {
         manager?.receive(
             SynchronizedFaceObservationBuilder.make(
                 event: event,
                 validationImageSource: validationImageSource,
+                faceMeshSnapshot: faceMeshSnapshot,
                 frameCameraTrackingState: frameCameraTrackingState
             )
+        )
+    }
+
+    /// Deep-copies all pointer-backed ARKit values before the callback returns.
+    /// No ARFaceGeometry or ARFaceAnchor reference crosses this boundary.
+    private func makeMeshSnapshot(
+        geometry: ARFaceGeometry,
+        sourceTimestamp: TimeInterval
+    ) -> FaceMeshSnapshot {
+        let vertices = geometry.vertices.map(FaceMeshVertex.init)
+        let textureCoordinates = geometry.textureCoordinates.map(FaceMeshTextureCoordinate.init)
+        let triangleIndices = Array(geometry.triangleIndices)
+        let topology = FaceMeshTopology(
+            vertexCount: vertices.count,
+            triangleCount: geometry.triangleCount,
+            triangleIndices: triangleIndices,
+            textureCoordinates: textureCoordinates
+        )
+        return FaceMeshSnapshot(
+            sourceTimestamp: sourceTimestamp,
+            topology: topology,
+            vertices: vertices
         )
     }
 

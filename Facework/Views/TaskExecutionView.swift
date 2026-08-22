@@ -190,7 +190,8 @@ struct TaskExecutionView: View {
                 collectedObservation: collectedObservation,
                 baseline: vm.baselineValues,
                 isNeutralPhase: false,
-                validationImageAssociation: validationImageAssociation
+                validationImageAssociation: validationImageAssociation,
+                rawCaptureHandler: vm.recordMesh
             )
         }
 

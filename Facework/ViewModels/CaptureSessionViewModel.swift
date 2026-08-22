@@ -33,6 +33,7 @@ final class CaptureSessionViewModel: ObservableObject {
     private let sessionValidityEvaluator = SessionValidityEvaluator()
     private let taskAnalyzer = TaskAnalyzer()
     private let sessionStore = SessionStore()
+    private var faceMeshAccumulator = FaceMeshSessionAccumulator()
 
     init(metadata: SessionMetadata) {
         self.metadata = metadata
@@ -93,6 +94,10 @@ final class CaptureSessionViewModel: ObservableObject {
         allFrames.append(contentsOf: frames)
     }
 
+    func recordMesh(for rawFrame: RawFrameCapture, snapshot: FaceMeshSnapshot?) {
+        faceMeshAccumulator.record(rawFrame: rawFrame, snapshot: snapshot)
+    }
+
     func moveToNextTask() {
         currentTaskIndex += 1
     }
@@ -122,6 +127,9 @@ final class CaptureSessionViewModel: ObservableObject {
             let urls = try sessionStore.save(metadata: metadata,
                                              config: taskConfigurations,
                                              frames: allFrames,
+                                             meshFrames: faceMeshAccumulator.frames,
+                                             unavailableMeshFrames: faceMeshAccumulator.unavailableFrames,
+                                             faceMeshTopology: faceMeshAccumulator.topology,
                                              repetitions: repetitions,
                                              summary: summary)
 

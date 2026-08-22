@@ -9,6 +9,9 @@ import Foundation
 
 final class SessionStore {
     static let rawFramesFileName = "raw_frames.json"
+    static let rawFaceMeshFramesFileName = "raw_face_mesh_frames.json"
+    static let faceMeshTopologyFileName = "face_mesh_topology.json"
+    static let faceMeshSummaryFileName = "face_mesh_summary.json"
 
     private let fileManagerService = FileManagerService()
     private let jsonExporter = JSONExporter()
@@ -21,6 +24,9 @@ final class SessionStore {
     func save(metadata: SessionMetadata,
               config: [TaskType: TaskConfiguration],
               frames: [FrameCapture],
+              meshFrames: [RawFaceMeshFrame] = [],
+              unavailableMeshFrames: [RawFaceMeshUnavailableFrame] = [],
+              faceMeshTopology: FaceMeshTopology? = nil,
               repetitions: [RepetitionResult],
               summary: SessionSummary) throws -> [URL] {
         let folder = try fileManagerService.sessionFolder(participantID: metadata.participantID, sessionID: metadata.sessionID)
@@ -34,6 +40,9 @@ final class SessionStore {
         let repCSVURL = folder.appendingPathComponent("merged_per_repetition.csv")
         let configURL = folder.appendingPathComponent("task_configurations.json")
         let imageManifestURL = folder.appendingPathComponent("validation_images_manifest.csv")
+        let rawFaceMeshFramesURL = folder.appendingPathComponent(Self.rawFaceMeshFramesFileName)
+        let faceMeshTopologyURL = folder.appendingPathComponent(Self.faceMeshTopologyFileName)
+        let faceMeshSummaryURL = folder.appendingPathComponent(Self.faceMeshSummaryFileName)
 
         var writtenURLs: [URL] = [
             metadataURL,
@@ -55,6 +64,42 @@ final class SessionStore {
         try csvExporter.exportFrames(frames, metadata: metadata, to: frameCSVURL)
         try csvExporter.exportRepetitions(repetitions, metadata: metadata, to: repCSVURL)
         try csvExporter.exportImageManifest(frames, metadata: metadata, to: imageManifestURL)
+
+        if metadata.meshCaptureVersion != "not-active" {
+            let rawFrames = Self.authoritativeRawFrames(from: frames)
+            let issues = FaceMeshExportValidator.validate(
+                rawFrames: rawFrames,
+                meshFrames: meshFrames,
+                unavailableFrames: unavailableMeshFrames,
+                topology: faceMeshTopology
+            )
+            guard issues.isEmpty else {
+                throw FaceMeshSessionStoreError.invalidAssociations(issues)
+            }
+            try validateImageMeshSynchronization(rawFrames: rawFrames, meshFrames: meshFrames)
+            try jsonExporter.export(
+                RawFaceMeshFramesExport(
+                    frames: meshFrames,
+                    unavailableFrames: unavailableMeshFrames
+                ),
+                to: rawFaceMeshFramesURL
+            )
+            let meshSummary = FaceMeshCaptureSummary(
+                topologyID: faceMeshTopology?.topologyID,
+                vertexCount: faceMeshTopology?.vertexCount,
+                triangleCount: faceMeshTopology?.triangleCount,
+                rawFrameCount: rawFrames.count,
+                meshFrameCount: meshFrames.count,
+                missingMeshFrameCount: rawFrames.count - meshFrames.count
+            )
+            try jsonExporter.export(meshSummary, to: faceMeshSummaryURL)
+            writtenURLs.append(rawFaceMeshFramesURL)
+            writtenURLs.append(faceMeshSummaryURL)
+            if let faceMeshTopology {
+                try jsonExporter.export(faceMeshTopology, to: faceMeshTopologyURL)
+                writtenURLs.append(faceMeshTopologyURL)
+            }
+        }
 
         let perTask = Dictionary(grouping: repetitions, by: \.taskType)
         for task in perTask.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
@@ -83,6 +128,21 @@ final class SessionStore {
         return writtenURLs
     }
 
+    private func validateImageMeshSynchronization(
+        rawFrames: [RawFrameCapture],
+        meshFrames: [RawFaceMeshFrame]
+    ) throws {
+        let meshByRawID = Dictionary(uniqueKeysWithValues: meshFrames.map { ($0.rawFrameID, $0) })
+        for raw in rawFrames where raw.effectiveValidationImageSynchronizationStatus == .sameARFrame {
+            guard raw.validationImageSourceTimestamp == raw.sourceTimestamp else {
+                throw FaceMeshSessionStoreError.imageTimestampMismatch(rawFrameID: raw.id)
+            }
+            if let mesh = meshByRawID[raw.id], mesh.sourceTimestamp != raw.sourceTimestamp {
+                throw FaceMeshSessionStoreError.imageTimestampMismatch(rawFrameID: raw.id)
+            }
+        }
+    }
+
     private func collectValidationImageURLs(from frames: [FrameCapture]) -> [URL] {
         let uniquePaths = Set(frames.compactMap { frame -> String? in
             guard let imageReference = frame.imageReference, !imageReference.isEmpty else { return nil }
@@ -94,6 +154,11 @@ final class SessionStore {
             .filter { FileManager.default.fileExists(atPath: $0.path) }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
+}
+
+enum FaceMeshSessionStoreError: Error, Equatable {
+    case invalidAssociations([FaceMeshValidationIssue])
+    case imageTimestampMismatch(rawFrameID: UUID)
 }
 
 private enum StoredZIPWriter {

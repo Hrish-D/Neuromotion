@@ -37,7 +37,6 @@ struct AppConfiguration: Equatable {
     let holdStabilityStdThreshold: Double = 0.12
     let signalSpikeDeltaThreshold: Double = 0.55
 
-    let enableMeshCaptureStub: Bool = false
     let enablePeakFrameImageCapture: Bool = true
 
     let exportRootFolderName: String = "FacialMotionBaselineData"

@@ -29,11 +29,13 @@ struct ValidationImageSource {
 struct SynchronizedFaceObservation {
     let observation: FaceTrackingObservation
     let validationImageSource: ValidationImageSource?
+    let faceMeshSnapshot: FaceMeshSnapshot?
     let frameCameraTrackingState: String?
 
     init(
         observation: FaceTrackingObservation,
         validationImageSource: ValidationImageSource? = nil,
+        faceMeshSnapshot: FaceMeshSnapshot? = nil,
         frameCameraTrackingState: String? = nil
     ) {
         if let validationImageSource {
@@ -42,8 +44,15 @@ struct SynchronizedFaceObservation {
                 "A synchronized image source must share the observation timestamp"
             )
         }
+        if let faceMeshSnapshot {
+            precondition(
+                faceMeshSnapshot.sourceTimestamp == observation.sourceTimestamp,
+                "A synchronized mesh snapshot must share the observation timestamp"
+            )
+        }
         self.observation = observation
         self.validationImageSource = validationImageSource
+        self.faceMeshSnapshot = faceMeshSnapshot
         self.frameCameraTrackingState = frameCameraTrackingState
     }
 }
@@ -52,11 +61,13 @@ enum SynchronizedFaceObservationBuilder {
     static func make(
         event: FaceTrackingCallbackEvent,
         validationImageSource: ValidationImageSource? = nil,
+        faceMeshSnapshot: FaceMeshSnapshot? = nil,
         frameCameraTrackingState: String? = nil
     ) -> SynchronizedFaceObservation {
         SynchronizedFaceObservation(
             observation: FaceTrackingEventProcessor.observation(for: event),
             validationImageSource: validationImageSource,
+            faceMeshSnapshot: faceMeshSnapshot,
             frameCameraTrackingState: frameCameraTrackingState
         )
     }

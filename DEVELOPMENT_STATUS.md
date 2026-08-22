@@ -45,6 +45,17 @@ and so on are synchronously encoded. Persisted raw frames and the additive
 validation manifest record raw-frame identity, measurement/image timestamps,
 and synchronization status without persisting ARKit reference objects.
 
+Prompt 11 extends that envelope with a complete, fully owned face-mesh snapshot
+copied synchronously from the same selected `ARFaceAnchor.geometry` before the
+AR session callback returns. The copied snapshot crosses the existing
+0.1-second collector gate; only accepted observations become
+`RawFaceMeshFrame` values. Each mesh frame links to exactly one
+`RawFrameCapture` UUID and preserves unmodified face-local Float XYZ positions.
+Constant topology is stored separately and identified by a Facework SHA-256
+digest over canonical little-endian counts, triangle indices, and texture
+coordinates. Missing, invalid, or incompatible geometry never removes the
+numerical raw frame and never produces fabricated vertices.
+
 The primary flow is setup, device readiness, neutral calibration, six guided
 movement tasks, session summary, and export.
 
@@ -71,20 +82,26 @@ movement tasks, session summary, and export.
 - JSON, per-frame CSV, per-repetition CSV, validation-image manifest, JPEG
   validation images, ZIP packaging, and share-sheet presentation.
 - Bundle-derived marketing/build identity and versioned research metadata:
-  raw schema `3.0.0`, analysis algorithm `0.3.0`, and capture protocol `0.3.0`.
+  raw schema `4.0.0`, analysis algorithm `0.3.0`, capture protocol `0.4.0`,
+  mesh capture `1.0.0`, and landmarks `not-active`.
 - Independent immutable raw acquisition persistence in `raw_frames.json`,
   including source timestamps, AR coefficients, copied transform and pose,
   face observation state/count/framing placeholders, recording context,
   same-frame camera tracking context, and explicitly versioned validation-image
   association provenance.
+- Immutable raw face-mesh positions for each accepted observation with usable
+  geometry, one session topology, exact raw-frame linkage, explicit
+  missing/incompatible records, and pre-export association validation.
+- Generic topology-bound versionable landmark definitions and exact mesh-index
+  extraction, with no production anatomical configuration active.
 - Legacy metadata decoding that preserves historical fields without assigning
   current analysis or capture versions to old sessions.
 - Generic physical-device application builds.
 
 ## Confirmed placeholders and unused components
 
-- `FaceGeometryExtractor` is gated by `enableMeshCaptureStub`, is not called by
-  capture code, and does not currently populate `meshVertices`.
+- Legacy compatibility `FrameCapture.meshVertices` remains decodeable but is
+  not populated by active capture and is not the Prompt 11 raw mesh stream.
 - Face center and face scale are fixed placeholder values rather than measured
   image-space geometry.
 - Readiness marks face visibility, framing, pose, and tracking stability as
@@ -100,8 +117,9 @@ movement tasks, session summary, and export.
 
 - Movement amplitude is based on normalized ARKit blend-shape coefficients; it
   is not a physical distance, angle, or explicit landmark displacement.
-- No named facial-landmark indices or geometric range-of-motion algorithm are
-  implemented.
+- No production named facial-landmark indices or geometric range-of-motion
+  algorithm are implemented. Generic index extraction exists only as a
+  topology-validated foundation.
 - Symmetry compares independently selected left and right peak coefficients,
   not necessarily simultaneous measurements at one shared peak frame.
 - Neutral calibration requires uninterrupted trustworthy tracking evidence
@@ -121,11 +139,11 @@ movement tasks, session summary, and export.
   justified signal-processing decision rather than an implicit time filter.
 - Validation JPEG sampling is periodic and is not guaranteed to capture the
   exact calculated peak frame.
-- New validation images and their numerical measurements originate from the
-  same `ARFrame` and share its timestamp. This does not establish simultaneous
-  RGB/infrared or RGB/depth hardware exposure, depth synchronization, mesh
-  synchronization, or clinical validity. Historical image associations remain
-  `legacyUnverified`.
+- New validation images, numerical measurements, and raw mesh snapshots
+  originate from the same `ARFrame`/selected face anchor and share its
+  timestamp. This does not establish simultaneous RGB/infrared or RGB/depth
+  hardware exposure, depth synchronization, or clinical validity. Historical
+  image associations remain `legacyUnverified`.
 - `facialActivationTooHighAtNeutral` remains a diagnostic warning at its
   existing strict `> 0.15` boundary. It does not alone invalidate trustworthy
   acquisition because stable non-zero ARKit coefficients may represent
@@ -155,26 +173,55 @@ limitations remain unchanged.
 
 New sessions record the app marketing version and build number from the app
 bundle, a public-API hardware model identifier, operating-system name and
-version, and the centralized research version identity. Mesh capture and
-operational landmarks remain inactive, so both corresponding version states
-are `not-active`.
+version, and the centralized research version identity. Raw mesh capture is
+active at `1.0.0`. Operational landmarks remain inactive, so
+`landmarkConfigurationVersion` remains `not-active`; infrastructure alone does
+not activate an unvalidated mapping.
 
 Historical metadata without the versioned schema decodes with
 `legacy-unknown`, `not-recorded`, and `not-active` values as appropriate.
 Current version numbers are never imputed into legacy sessions. The in-memory
 `wasLoadedFromLegacySchema` marker is not written to exports.
 
-Raw schema `3.0.0` identifies sessions whose validation-image association
+Raw schema `4.0.0` identifies sessions that add the authoritative linked raw
+mesh stream and topology provenance. Raw schema `3.0.0` continues to identify
+Prompt 10 sessions whose validation-image association
 semantics record same-ARFrame provenance. Existing metadata that explicitly
 records raw schema `1.0.0` or `2.0.0` retains
 that identity, and metadata predating version fields remains `legacy-unknown`.
 Legacy flat `FrameCapture` JSON still decodes without inventing observation
 facts that were not historically stored. New analysis uses `0.3.0`; historical
 sessions explicitly marked `0.1.0` retain that identity and unversioned sessions
-remain `legacy-unknown`. Capture protocol `0.3.0` records same-ARFrame paired
+remain `legacy-unknown`. Capture protocol `0.4.0` records same-ARFrame
+measurement, mesh, and optional RGB acquisition without changing participant
+workflow, task timing, or sampling cadence. Capture protocol `0.3.0` records same-ARFrame paired
 measurement/RGB acquisition while preserving accepted sampling cadence.
 Historical raw schema `2.0.0`, analysis `0.3.0`, and capture protocol `0.2.0`
 remain unchanged when decoded. Mesh and landmark states remain `not-active`.
+
+The installed iPhoneOS 26.2 SDK declares runtime vertex, triangle-index, and
+texture-coordinate arrays plus triangle count, and documents constant
+triangle/vertex counts with only positions changing frame-to-frame. It does not
+publish numeric physical-device counts. The simulator neutral-geometry
+constructor reports 0 vertices, 0 triangles, and 0 texture coordinates and is
+not a TrueDepth topology measurement; actual device counts and topology ID must
+be recorded during Prompt 11 physical verification.
+
+Raw positions use ARKit face-anchor coordinates and meter/Float semantics with
+no transform, centering, smoothing, denoising, interpolation, or side reversal.
+Positive X is viewer-right / subject-left, positive Y is up, and native ARKit
+right-handed orientation is preserved. The existing same-frame face transform
+supports future derived world-coordinate conversion without duplicating
+world-space vertices.
+
+`raw_frames.json` remains authoritative for general observations.
+`raw_face_mesh_frames.json` contains linked dynamic frames plus explicit
+unavailable-frame records; `face_mesh_topology.json` contains the topology once;
+and `face_mesh_summary.json` contains only counts and topology identity. Existing
+Prompt 10 files, CSVs, images, ZIP, and sharing remain additive and unchanged.
+No vertex arrays are added to merged CSVs or session summary. No virtual or
+interpolated points, custom vision model, pixel projection, or clinical anatomy
+mapping is introduced by Prompt 11.
 
 ## Test status
 
@@ -211,10 +258,12 @@ acquisition-event priority over stale sampled-frame QC, and the
 17/18-valid-repetition case. Prompt 10 adds same-source envelope, close-frame
 identity, unchanged sampling/stride, repetition isolation, write-failure,
 manifest provenance, raw round-trip, and legacy-unverified coverage. The suite
-now contains 182 unit tests: 180 pass
-and two existing direct `CaptureSessionViewModel` checks skip in the simulator
-because that view model eagerly constructs `ARSession`. All five UI-test
-methods pass across six executions.
+also contains Prompt 11 deterministic coverage for same-source
+measurement/mesh/image identity, accepted-sample and repetition isolation,
+raw linkage, missing/incompatible geometry, topology identity and round trips,
+structured export separation, QC independence, generic topology-bound
+landmark validation/extraction, current identity, and historical truthfulness.
+Exact final Prompt 11 suite totals are recorded in the implementation report.
 
 Repository search confirmed that `AppConfiguration` is never encoded or
 decoded. Its unused `Codable` conformance and hardcoded app-version field were
@@ -245,8 +294,12 @@ schema `1.0.0`, analysis version `0.1.0`, and capture protocol `0.1.0`.
   repetition 1 was correctly reported as partial/invalid with `signalSpike`
   and `invalidTimestampGap`.
 
-Same-ARFrame validation-image/measurement synchronization now requires the
-Prompt 10 physical-device verification below. Accepted-cadence consistency
+Prompt 10 physical verification subsequently completed on a real TrueDepth
+iPhone: 512 raw and processed frames, 18/18 valid repetitions, 54/54 JPEG and
+manifest associations linked to real raw UUIDs, exact measurement/image
+timestamp equality, `sameARFrame` status throughout, no duplicate/decreasing
+timestamps, no non-finite values, approximately 8.57 Hz accepted cadence, and
+Prompt 9 retry-baseline isolation preserved. Accepted-cadence consistency
 remains an outstanding scientific limitation.
 
 Use synthetic or consenting non-identifiable data during development. Exported
@@ -255,7 +308,7 @@ outside version control.
 
 ## Next implementation phase
 
-Raw ARKit face-mesh capture and versioned anatomical landmark foundation.
+Face-mesh inspection, research landmark mapping, and regional geometry definitions.
 
 Prompt 9 calibration/QC is complete in code pending physical retry
 verification. Zero eligible frames now fail; no zero or hard-invalid fallback
@@ -278,10 +331,11 @@ Prompt 8 timestamp-aware processing remains active. Physical cadence remains
 variable around 8.57–10 Hz, five-sample smoothing is unchanged, and symmetry,
 signed velocity, and hold-stability interpretation remain future scientific
 issues. Absolute image paths and the `private` ZIP-prefix issue remain
-unresolved. Prompt 10 guarantees same-ARFrame RGB/measurement association only;
-depth/infrared and mesh synchronization remain unimplemented. Mesh and landmarks remain
-inactive; empirical calibration thresholds require broader participant data;
-no clinical validation is claimed. The Prompt 8 capture-button label overlap
+unresolved. Prompt 11 guarantees same-ARFrame RGB/measurement/mesh provenance.
+Depth and infrared synchronization remain unimplemented. No production
+landmark mapping, virtual/interpolated point, physician configuration UI,
+custom model, new clinical score, or clinical validation exists. Empirical
+calibration thresholds require broader participant data. The Prompt 8 capture-button label overlap
 was corrected without changing actions, timing, or capture state.
 
 ## Presentation status

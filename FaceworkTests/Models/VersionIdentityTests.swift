@@ -42,10 +42,10 @@ final class VersionIdentityTests: XCTestCase {
         XCTAssertEqual(
             ResearchDataVersions.current,
             ResearchDataVersions(
-                rawDataSchemaVersion: "3.0.0",
+                rawDataSchemaVersion: "4.0.0",
                 analysisAlgorithmVersion: "0.3.0",
-                captureProtocolVersion: "0.3.0",
-                meshCaptureVersion: "not-active",
+                captureProtocolVersion: "0.4.0",
+                meshCaptureVersion: "1.0.0",
                 landmarkConfigurationVersion: "not-active"
             )
         )
@@ -112,7 +112,6 @@ final class VersionIdentityTests: XCTestCase {
         XCTAssertEqual(configuration.holdThresholdDefault, 0.35)
         XCTAssertEqual(configuration.onsetThresholdDefault, 0.20)
         XCTAssertEqual(configuration.signalSpikeDeltaThreshold, 0.55)
-        XCTAssertFalse(configuration.enableMeshCaptureStub)
         XCTAssertTrue(configuration.enablePeakFrameImageCapture)
     }
 }

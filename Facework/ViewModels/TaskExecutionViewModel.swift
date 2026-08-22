@@ -74,26 +74,31 @@ final class TaskExecutionViewModel: ObservableObject {
         append(raw: raw, baseline: baseline, meshVertices: meshVertices)
     }
 
+    @discardableResult
     func appendLiveFrame(
         collectedObservation: CollectedFaceObservation,
         baseline: [String: Double],
         isNeutralPhase: Bool,
-        validationImageAssociation: ValidationImageAssociation? = nil
-    ) {
+        validationImageAssociation: ValidationImageAssociation? = nil,
+        rawCaptureHandler: ((RawFrameCapture, FaceMeshSnapshot?) -> Void)? = nil
+    ) -> FrameCapture {
         let raw = RawFrameCapture(
             collectedObservation: collectedObservation,
             frameIndex: frameIndex,
             isNeutralPhase: isNeutralPhase,
             validationImageAssociation: validationImageAssociation
         )
-        append(raw: raw, baseline: baseline)
+        // Raw mesh materialization precedes all derived processing and QC.
+        rawCaptureHandler?(raw, collectedObservation.faceMeshSnapshot)
+        return append(raw: raw, baseline: baseline)
     }
 
+    @discardableResult
     private func append(
         raw: RawFrameCapture,
         baseline: [String: Double],
         meshVertices: [[Float]]? = nil
-    ) {
+    ) -> FrameCapture {
         let processed = frameProcessor.process(raw: raw, baseline: baseline, previous: captureFrames.last)
         let frame = FrameCapture(raw: processed.raw, analysis: processed.analysis, meshVertices: meshVertices)
 
@@ -103,6 +108,7 @@ final class TaskExecutionViewModel: ObservableObject {
         liveIsValid = frame.isValidFrame
         debugValues = frame.rawBlendshapes
         normalizedValues = frame.normalizedBlendshapes
+        return frame
     }
 
     func peakFrameCandidate(for task: TaskType) -> PeakFrameCandidate? {

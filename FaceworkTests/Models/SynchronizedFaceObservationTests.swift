@@ -14,6 +14,7 @@ final class SynchronizedFaceObservationTests: XCTestCase {
                 sourceTimestamp: 10,
                 payload: .encodedImageData(Data("image-A".utf8), identifier: "image-A")
             ),
+            faceMeshSnapshot: mesh(timestamp: 10, value: 0.25),
             frameCameraTrackingState: "normal"
         )
 
@@ -21,6 +22,8 @@ final class SynchronizedFaceObservationTests: XCTestCase {
         XCTAssertEqual(envelope.observation.rawBlendshapes, ["jawOpen": 0.25])
         XCTAssertEqual(envelope.validationImageSource?.sourceTimestamp, 10)
         XCTAssertEqual(envelope.validationImageSource?.payload.testIdentifier, "image-A")
+        XCTAssertEqual(envelope.faceMeshSnapshot?.sourceTimestamp, 10)
+        XCTAssertEqual(envelope.faceMeshSnapshot?.vertices.first?.x, 0.25)
         XCTAssertEqual(envelope.frameCameraTrackingState, "normal")
     }
 
@@ -38,6 +41,7 @@ final class SynchronizedFaceObservationTests: XCTestCase {
         XCTAssertEqual(samples.count, 1)
         XCTAssertEqual(samples[0].observation.rawBlendshapes, ["jawOpen": 0.1])
         XCTAssertEqual(samples[0].validationImageSource?.payload.testIdentifier, "image-A")
+        XCTAssertEqual(samples[0].faceMeshSnapshot?.vertices.first?.x, 0.1)
     }
 
     func testSamplingGateRejectsDuplicateDecreasingAndTooCloseImageCandidates() {
@@ -54,6 +58,7 @@ final class SynchronizedFaceObservationTests: XCTestCase {
 
         XCTAssertEqual(samples.map(\.observation.sourceTimestamp), [20, 20.1])
         XCTAssertEqual(samples.compactMap { $0.validationImageSource?.payload.testIdentifier }, ["first", "second"])
+        XCTAssertEqual(samples.compactMap { $0.faceMeshSnapshot?.vertices.first?.x }, [0.1, 0.5])
     }
 
     func testStopAndRestartKeepImageSourcesIsolatedByRecording() {
@@ -69,6 +74,7 @@ final class SynchronizedFaceObservationTests: XCTestCase {
 
         XCTAssertNotEqual(firstID, secondID)
         XCTAssertEqual(samples.compactMap { $0.validationImageSource?.payload.testIdentifier }, ["rep-1", "rep-2"])
+        XCTAssertEqual(samples.compactMap { $0.faceMeshSnapshot?.vertices.first?.x }, [0.1, 0.3])
         XCTAssertEqual(samples.map(\.mode), [
             .task(task: .browRaise, repetitionIndex: 1),
             .task(task: .browRaise, repetitionIndex: 2)
@@ -108,7 +114,22 @@ final class SynchronizedFaceObservationTests: XCTestCase {
             validationImageSource: ValidationImageSource(
                 sourceTimestamp: timestamp,
                 payload: .encodedImageData(Data(imageID.utf8), identifier: imageID)
-            )
+            ),
+            faceMeshSnapshot: mesh(timestamp: timestamp, value: Float(value))
+        )
+    }
+
+    private func mesh(timestamp: TimeInterval, value: Float) -> FaceMeshSnapshot {
+        let topology = FaceMeshTopology(
+            vertexCount: 1,
+            triangleCount: 0,
+            triangleIndices: [],
+            textureCoordinates: [FaceMeshTextureCoordinate(u: 0, v: 0)]
+        )
+        return FaceMeshSnapshot(
+            sourceTimestamp: timestamp,
+            topology: topology,
+            vertices: [FaceMeshVertex(x: value, y: value + 1, z: value + 2)]
         )
     }
 
