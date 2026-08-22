@@ -78,13 +78,13 @@ final class TaskExecutionViewModel: ObservableObject {
         collectedObservation: CollectedFaceObservation,
         baseline: [String: Double],
         isNeutralPhase: Bool,
-        imageReference: String? = nil
+        validationImageAssociation: ValidationImageAssociation? = nil
     ) {
         let raw = RawFrameCapture(
             collectedObservation: collectedObservation,
             frameIndex: frameIndex,
             isNeutralPhase: isNeutralPhase,
-            validationImageReference: imageReference
+            validationImageAssociation: validationImageAssociation
         )
         append(raw: raw, baseline: baseline)
     }

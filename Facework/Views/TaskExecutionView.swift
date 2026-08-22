@@ -154,30 +154,43 @@ struct TaskExecutionView: View {
         observationCollector = collector
         collector.start(mode: .task(task: task, repetitionIndex: repIndex)) { collectedObservation in
             let nextFrameIndex = taskVM.nextFrameIndex
-            let validationImageReference: String?
+            let validationImageAssociation: ValidationImageAssociation?
 
-            let validationImageStride = 10
             let shouldSaveValidationImage = appState.saveValidationImages &&
-                                            nextFrameIndex % validationImageStride == 0
+                                            ValidationImageCapturePolicy.shouldCapture(
+                                                acceptedFrameIndex: nextFrameIndex
+                                            )
 
             if shouldSaveValidationImage {
-                let imageName = "validation_\(task.rawValue)_rep_\(repIndex)_frame_\(String(format: "%04d", nextFrameIndex))"
-                let overlay = "\(task.displayName) | rep \(repIndex) | frame \(nextFrameIndex)"
-                validationImageReference = vm.imageCaptureService.saveCurrentCameraImage(
-                    from: vm.trackingManager.session,
-                    named: imageName,
-                    in: sessionFolder,
-                    overlayText: overlay
+                let imageName = ValidationImageCapturePolicy.fileStem(
+                    task: task,
+                    repetitionIndex: repIndex,
+                    frameIndex: nextFrameIndex
                 )
+                let overlay = "\(task.displayName) | rep \(repIndex) | frame \(nextFrameIndex)"
+                if let imageSource = collectedObservation.validationImageSource {
+                    validationImageAssociation = vm.imageCaptureService.saveValidationImage(
+                        from: imageSource,
+                        named: imageName,
+                        in: sessionFolder,
+                        overlayText: overlay
+                    )
+                } else {
+                    validationImageAssociation = ValidationImageAssociation(
+                        reference: nil,
+                        imageSourceTimestamp: nil,
+                        synchronizationStatus: .unavailable
+                    )
+                }
             } else {
-                validationImageReference = nil
+                validationImageAssociation = nil
             }
 
             taskVM.appendLiveFrame(
                 collectedObservation: collectedObservation,
                 baseline: vm.baselineValues,
                 isNeutralPhase: false,
-                imageReference: validationImageReference
+                validationImageAssociation: validationImageAssociation
             )
         }
 

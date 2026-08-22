@@ -26,6 +26,7 @@ final class RawFrameCaptureTests: XCTestCase {
             recordingID: recordingID,
             mode: .task(task: .smileTeeth, repetitionIndex: 2),
             observation: observation,
+            validationImageSource: nil,
             cameraTrackingState: "normal"
         )
 
@@ -33,7 +34,11 @@ final class RawFrameCaptureTests: XCTestCase {
             collectedObservation: collected,
             frameIndex: 7,
             isNeutralPhase: false,
-            validationImageReference: "/synthetic/validation.jpg"
+            validationImageAssociation: ValidationImageAssociation(
+                reference: "/synthetic/validation.jpg",
+                imageSourceTimestamp: 12.345,
+                synchronizationStatus: .sameARFrame
+            )
         )
 
         XCTAssertEqual(raw.recordingID, recordingID)
@@ -52,6 +57,8 @@ final class RawFrameCaptureTests: XCTestCase {
         XCTAssertEqual(raw.cameraTrackingStateAtCapture, "normal")
         XCTAssertEqual(raw.isNeutralPhase, false)
         XCTAssertEqual(raw.validationImageReference, "/synthetic/validation.jpg")
+        XCTAssertEqual(raw.validationImageSourceTimestamp, 12.345)
+        XCTAssertEqual(raw.validationImageSynchronizationStatus, .sameARFrame)
     }
 
     func testRawBlendshapesAreIndependentFromSourceVariable() {

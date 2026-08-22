@@ -37,6 +37,14 @@ ordered, unsampled acquisition-event stream alongside the unchanged sampled
 scientific frames, so face removal cannot disappear behind the 0.1-second
 scientific sampling gate.
 
+Prompt 10 creates each tracking measurement and optional RGB validation-image
+source from one `ARFrame` snapshot. `SynchronizedFaceObservation` carries the
+copied face observation, same-frame camera tracking context, and transient RGB
+source through the unchanged sampling gate. Only accepted indexes 0, 10, 20,
+and so on are synchronously encoded. Persisted raw frames and the additive
+validation manifest record raw-frame identity, measurement/image timestamps,
+and synchronization status without persisting ARKit reference objects.
+
 The primary flow is setup, device readiness, neutral calibration, six guided
 movement tasks, session summary, and export.
 
@@ -63,11 +71,12 @@ movement tasks, session summary, and export.
 - JSON, per-frame CSV, per-repetition CSV, validation-image manifest, JPEG
   validation images, ZIP packaging, and share-sheet presentation.
 - Bundle-derived marketing/build identity and versioned research metadata:
-  raw schema `2.0.0`, analysis algorithm `0.3.0`, and capture protocol `0.2.0`.
+  raw schema `3.0.0`, analysis algorithm `0.3.0`, and capture protocol `0.3.0`.
 - Independent immutable raw acquisition persistence in `raw_frames.json`,
   including source timestamps, AR coefficients, copied transform and pose,
   face observation state/count/framing placeholders, recording context,
-  separately sampled camera tracking state, and associated image references.
+  same-frame camera tracking context, and explicitly versioned validation-image
+  association provenance.
 - Legacy metadata decoding that preserves historical fields without assigning
   current analysis or capture versions to old sessions.
 - Generic physical-device application builds.
@@ -112,9 +121,11 @@ movement tasks, session summary, and export.
   justified signal-processing decision rather than an implicit time filter.
 - Validation JPEG sampling is periodic and is not guaranteed to capture the
   exact calculated peak frame.
-- Validation-image capture still reads `ARSession.currentFrame` separately
-  from the accepted scientific observation, so exact image/measurement
-  synchronization is not guaranteed.
+- New validation images and their numerical measurements originate from the
+  same `ARFrame` and share its timestamp. This does not establish simultaneous
+  RGB/infrared or RGB/depth hardware exposure, depth synchronization, mesh
+  synchronization, or clinical validity. Historical image associations remain
+  `legacyUnverified`.
 - `facialActivationTooHighAtNeutral` remains a diagnostic warning at its
   existing strict `> 0.15` boundary. It does not alone invalidate trustworthy
   acquisition because stable non-zero ARKit coefficients may represent
@@ -123,9 +134,9 @@ movement tasks, session summary, and export.
   six configured tasks, all configured repetition attempts, and at least one
   valid repetition per task. This permits an isolated failed repetition while
   rejecting missing or wholly unusable tasks.
-- Observation timestamps sample `ARSession.currentFrame.timestamp` once per
-  callback, with `CACurrentMediaTime()` as fallback; they are not timestamps
-  intrinsic to `ARFaceAnchor`.
+- New tracking observations use the single selected `ARFrame.timestamp`; their
+  blendshapes and transform come from that frame's face anchor and their RGB
+  validation source comes from that frame's `capturedImage`.
 - Camera/session tracking status remains separate from face observations and
   is still consumed by the existing tracking QC compatibility path.
 - Accepted cadence depends on source-observation timing. A verified device
@@ -153,17 +164,17 @@ Historical metadata without the versioned schema decodes with
 Current version numbers are never imputed into legacy sessions. The in-memory
 `wasLoadedFromLegacySchema` marker is not written to exports.
 
-Raw schema `2.0.0` identifies sessions with the independent authoritative raw
-record. Existing metadata that explicitly records raw schema `1.0.0` retains
+Raw schema `3.0.0` identifies sessions whose validation-image association
+semantics record same-ARFrame provenance. Existing metadata that explicitly
+records raw schema `1.0.0` or `2.0.0` retains
 that identity, and metadata predating version fields remains `legacy-unknown`.
 Legacy flat `FrameCapture` JSON still decodes without inventing observation
 facts that were not historically stored. New analysis uses `0.3.0`; historical
 sessions explicitly marked `0.1.0` retain that identity and unversioned sessions
-remain `legacy-unknown`. Raw schema remains `2.0.0`, capture protocol remains
-`0.2.0`, and mesh and landmark states remain `not-active`. Historical analysis
-`0.2.0` and capture protocol `0.1.0` values remain unchanged when decoded. The
-analysis increment records warning-aware calibration and protocol validity;
-the capture-protocol increment records mandatory retry after failed calibration.
+remain `legacy-unknown`. Capture protocol `0.3.0` records same-ARFrame paired
+measurement/RGB acquisition while preserving accepted sampling cadence.
+Historical raw schema `2.0.0`, analysis `0.3.0`, and capture protocol `0.2.0`
+remain unchanged when decoded. Mesh and landmark states remain `not-active`.
 
 ## Test status
 
@@ -197,7 +208,10 @@ semantics, removal of the invalid-neutral fallback, irregular-time calibration
 diagnostics, ordered unsampled face-loss events, full-duration evidence,
 retry isolation, raw-frame immutability, protocol completeness, live
 acquisition-event priority over stale sampled-frame QC, and the
-17/18-valid-repetition case. The suite now contains 169 unit tests: 167 pass
+17/18-valid-repetition case. Prompt 10 adds same-source envelope, close-frame
+identity, unchanged sampling/stride, repetition isolation, write-failure,
+manifest provenance, raw round-trip, and legacy-unverified coverage. The suite
+now contains 182 unit tests: 180 pass
 and two existing direct `CaptureSessionViewModel` checks skip in the simulator
 because that view model eagerly constructs `ARSession`. All five UI-test
 methods pass across six executions.
@@ -231,9 +245,9 @@ schema `1.0.0`, analysis version `0.1.0`, and capture protocol `0.1.0`.
   repetition 1 was correctly reported as partial/invalid with `signalSpike`
   and `invalidTimestampGap`.
 
-Exact validation-image/measurement synchronization and accepted-cadence
-consistency remain outstanding scientific limitations rather than failed
-device-verification steps.
+Same-ARFrame validation-image/measurement synchronization now requires the
+Prompt 10 physical-device verification below. Accepted-cadence consistency
+remains an outstanding scientific limitation.
 
 Use synthetic or consenting non-identifiable data during development. Exported
 participant sessions, research data, facial images, and local logs must remain
@@ -241,7 +255,7 @@ outside version control.
 
 ## Next implementation phase
 
-Measurement / image synchronization.
+Raw ARKit face-mesh capture and versioned anatomical landmark foundation.
 
 Prompt 9 calibration/QC is complete in code pending physical retry
 verification. Zero eligible frames now fail; no zero or hard-invalid fallback
@@ -263,8 +277,9 @@ configured attempts exist and each task retains at least one valid repetition.
 Prompt 8 timestamp-aware processing remains active. Physical cadence remains
 variable around 8.57–10 Hz, five-sample smoothing is unchanged, and symmetry,
 signed velocity, and hold-stability interpretation remain future scientific
-issues. Exact measurement/image synchronization, absolute image paths, and the
-`private` ZIP-prefix issue remain unresolved. Mesh and landmarks remain
+issues. Absolute image paths and the `private` ZIP-prefix issue remain
+unresolved. Prompt 10 guarantees same-ARFrame RGB/measurement association only;
+depth/infrared and mesh synchronization remain unimplemented. Mesh and landmarks remain
 inactive; empirical calibration thresholds require broader participant data;
 no clinical validation is claimed. The Prompt 8 capture-button label overlap
 was corrected without changing actions, timing, or capture state.

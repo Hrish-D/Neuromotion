@@ -15,6 +15,7 @@ struct CollectedFaceObservation {
     let recordingID: UUID
     let mode: FaceObservationCollectionMode
     let observation: FaceTrackingObservation
+    let validationImageSource: ValidationImageSource?
     let cameraTrackingState: String
 }
 
@@ -42,8 +43,8 @@ nonisolated final class FaceObservationCollector {
     ) {
         self.minimumSampleInterval = minimumSampleInterval
         self.cameraTrackingState = cameraTrackingState
-        observationCancellable = provider.observations.sink { [weak self] observation in
-            self?.receive(observation)
+        observationCancellable = provider.observations.sink { [weak self] synchronizedObservation in
+            self?.receive(synchronizedObservation)
         }
     }
 
@@ -73,14 +74,17 @@ nonisolated final class FaceObservationCollector {
     }
 
     @MainActor
-    private func receive(_ observation: FaceTrackingObservation) {
+    private func receive(_ synchronizedObservation: SynchronizedFaceObservation) {
         guard var activeCollection else { return }
+        let observation = synchronizedObservation.observation
 
         let collectedObservation = CollectedFaceObservation(
             recordingID: activeCollection.recordingID,
             mode: activeCollection.mode,
             observation: observation,
-            cameraTrackingState: cameraTrackingState()
+            validationImageSource: synchronizedObservation.validationImageSource,
+            cameraTrackingState: synchronizedObservation.frameCameraTrackingState
+                ?? cameraTrackingState()
         )
 
         // Attempt-level state transitions must remain observable even when the

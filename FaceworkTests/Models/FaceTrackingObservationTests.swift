@@ -15,7 +15,7 @@ final class FaceTrackingObservationTests: XCTestCase {
     func testOneSnapshotInputProducesExactlyOneObservation() {
         let provider = SyntheticFaceObservationProvider()
         var received: [FaceTrackingObservation] = []
-        provider.observations.sink { received.append($0) }.store(in: &cancellables)
+        provider.observations.sink { received.append($0.observation) }.store(in: &cancellables)
 
         provider.emit(makeObservation(timestamp: 1))
 
@@ -169,7 +169,7 @@ final class FaceTrackingObservationTests: XCTestCase {
     func testSyntheticProviderPreservesEmissionOrder() {
         let provider = SyntheticFaceObservationProvider()
         var timestamps: [TimeInterval] = []
-        provider.observations.sink { timestamps.append($0.sourceTimestamp) }.store(in: &cancellables)
+        provider.observations.sink { timestamps.append($0.observation.sourceTimestamp) }.store(in: &cancellables)
 
         [3.0, 4.0, 5.0].forEach { provider.emit(makeObservation(timestamp: $0)) }
 
@@ -179,7 +179,7 @@ final class FaceTrackingObservationTests: XCTestCase {
     func testRemovalProducesExplicitUnavailableObservation() {
         let provider = SyntheticFaceObservationProvider()
         var states: [FaceTrackingObservationState] = []
-        provider.observations.sink { states.append($0.trackingState) }.store(in: &cancellables)
+        provider.observations.sink { states.append($0.observation.trackingState) }.store(in: &cancellables)
 
         provider.emit(makeObservation(timestamp: 1))
         provider.emit(makeUnavailableObservation(timestamp: 2))
@@ -190,7 +190,7 @@ final class FaceTrackingObservationTests: XCTestCase {
     func testNoRegularObservationAppearsAfterRemovalUntilNewValidInput() {
         let provider = SyntheticFaceObservationProvider()
         var observations: [FaceTrackingObservation] = []
-        provider.observations.sink { observations.append($0) }.store(in: &cancellables)
+        provider.observations.sink { observations.append($0.observation) }.store(in: &cancellables)
 
         provider.emit(makeObservation(timestamp: 1))
         provider.emit(makeUnavailableObservation(timestamp: 2))
@@ -205,7 +205,7 @@ final class FaceTrackingObservationTests: XCTestCase {
     func testSyntheticProviderDoesNotRequireARSession() {
         let provider = SyntheticFaceObservationProvider()
         var timestamp: TimeInterval?
-        provider.observations.sink { timestamp = $0.sourceTimestamp }.store(in: &cancellables)
+        provider.observations.sink { timestamp = $0.observation.sourceTimestamp }.store(in: &cancellables)
 
         provider.emit(makeObservation(timestamp: 44))
 

@@ -7,6 +7,19 @@ import CoreGraphics
 import Foundation
 import simd
 
+enum ValidationImageSynchronizationStatus: String, Codable, Equatable, Sendable {
+    case sameARFrame
+    case legacyUnverified
+    case unavailable
+    case writeFailed
+}
+
+struct ValidationImageAssociation: Equatable, Sendable {
+    let reference: String?
+    let imageSourceTimestamp: TimeInterval?
+    let synchronizationStatus: ValidationImageSynchronizationStatus
+}
+
 struct FaceTransformSnapshot: Codable, Equatable, Sendable {
     struct Column: Codable, Equatable, Sendable {
         let x: Float
@@ -68,8 +81,18 @@ struct RawFrameCapture: Codable, Equatable, Identifiable, Sendable {
     let cameraTrackingStateAtCapture: String
     let isNeutralPhase: Bool?
 
-    /// Associated artifact only; it does not guarantee exact image/observation synchronization.
+    /// Associated artifact path. Consult synchronization status before making
+    /// any temporal association claim.
     let validationImageReference: String?
+    let validationImageSourceTimestamp: TimeInterval?
+    let validationImageSynchronizationStatus: ValidationImageSynchronizationStatus?
+
+    var effectiveValidationImageSynchronizationStatus: ValidationImageSynchronizationStatus? {
+        if let validationImageSynchronizationStatus {
+            return validationImageSynchronizationStatus
+        }
+        return validationImageReference == nil ? nil : .legacyUnverified
+    }
 
     init(
         id: UUID,
@@ -88,7 +111,9 @@ struct RawFrameCapture: Codable, Equatable, Identifiable, Sendable {
         faceScale: Double?,
         cameraTrackingStateAtCapture: String,
         isNeutralPhase: Bool?,
-        validationImageReference: String?
+        validationImageReference: String?,
+        validationImageSourceTimestamp: TimeInterval? = nil,
+        validationImageSynchronizationStatus: ValidationImageSynchronizationStatus? = nil
     ) {
         self.id = id
         self.recordingID = recordingID
@@ -107,13 +132,15 @@ struct RawFrameCapture: Codable, Equatable, Identifiable, Sendable {
         self.cameraTrackingStateAtCapture = cameraTrackingStateAtCapture
         self.isNeutralPhase = isNeutralPhase
         self.validationImageReference = validationImageReference
+        self.validationImageSourceTimestamp = validationImageSourceTimestamp
+        self.validationImageSynchronizationStatus = validationImageSynchronizationStatus
     }
 
     init(
         collectedObservation: CollectedFaceObservation,
         frameIndex: Int,
         isNeutralPhase: Bool,
-        validationImageReference: String?
+        validationImageAssociation: ValidationImageAssociation? = nil
     ) {
         let observation = collectedObservation.observation
         let taskType: TaskType
@@ -145,7 +172,9 @@ struct RawFrameCapture: Codable, Equatable, Identifiable, Sendable {
             faceScale: observation.faceScale,
             cameraTrackingStateAtCapture: collectedObservation.cameraTrackingState,
             isNeutralPhase: isNeutralPhase,
-            validationImageReference: validationImageReference
+            validationImageReference: validationImageAssociation?.reference,
+            validationImageSourceTimestamp: validationImageAssociation?.imageSourceTimestamp,
+            validationImageSynchronizationStatus: validationImageAssociation?.synchronizationStatus
         )
     }
 }

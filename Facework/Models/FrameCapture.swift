@@ -25,6 +25,10 @@ struct FrameCapture: Codable, Equatable, Identifiable {
     var qcFlags: [QCFlag] { analysis.qcFlags }
     var isValidFrame: Bool { analysis.isValidFrame }
     var imageReference: String? { raw.validationImageReference }
+    var imageSourceTimestamp: TimeInterval? { raw.validationImageSourceTimestamp }
+    var imageSynchronizationStatus: ValidationImageSynchronizationStatus? {
+        raw.effectiveValidationImageSynchronizationStatus
+    }
 
     init(raw: RawFrameCapture, analysis: FrameAnalysis, meshVertices: [[Float]]? = nil) {
         self.raw = raw

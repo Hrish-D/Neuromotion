@@ -72,7 +72,7 @@ final class ExporterTests: XCTestCase {
         let lines = try contents(url).components(separatedBy: "\n")
         XCTAssertEqual(lines.count, 2)
         XCTAssertEqual(lines[0],
-                       "task,repetition,frameIndex,timestamp,isValidFrame,imageFileName,imageReference,sessionID,rawDataSchemaVersion,analysisAlgorithmVersion,captureProtocolVersion")
+                       "task,repetition,frameIndex,timestamp,isValidFrame,imageFileName,imageReference,sessionID,rawDataSchemaVersion,analysisAlgorithmVersion,captureProtocolVersion,rawFrameID,recordingID,measurementSourceTimestamp,imageSourceTimestamp,synchronizationStatus")
         XCTAssertTrue(lines[1].contains("validation.jpg"))
         XCTAssertTrue(lines[1].contains(absolutePath))
     }
@@ -180,13 +180,19 @@ final class ExporterTests: XCTestCase {
             metadata.captureProtocolVersion
         ].joined(separator: ",")
 
-        for url in [frameURL, repetitionURL, manifestURL] {
+        for url in [frameURL, repetitionURL] {
             let lines = try contents(url).components(separatedBy: "\n")
             XCTAssertTrue(lines[0].hasSuffix(
                 "sessionID,rawDataSchemaVersion,analysisAlgorithmVersion,captureProtocolVersion"
             ))
             XCTAssertTrue(try XCTUnwrap(lines.last).hasSuffix(expectedIdentity))
         }
+
+        let manifestLines = try contents(manifestURL).components(separatedBy: "\n")
+        XCTAssertTrue(manifestLines[0].contains(
+            "sessionID,rawDataSchemaVersion,analysisAlgorithmVersion,captureProtocolVersion,rawFrameID"
+        ))
+        XCTAssertTrue(manifestLines[1].contains(expectedIdentity))
     }
 
     private func contents(_ url: URL) throws -> String {

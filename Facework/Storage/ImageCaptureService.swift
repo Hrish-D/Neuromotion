@@ -7,25 +7,49 @@
 
 import Foundation
 import UIKit
-import ARKit
+import CoreVideo
 import CoreImage
 import ImageIO
 
-final class ImageCaptureService {
+nonisolated final class ImageCaptureService {
     private let ciContext = CIContext()
 
-    func saveCurrentCameraImage(from session: ARSession,
-                                named name: String,
-                                in folder: URL,
-                                overlayText: String? = nil) -> String? {
-        guard AppConfiguration.shared.enablePeakFrameImageCapture else { return nil }
-        guard let frame = session.currentFrame else { return nil }
-        return saveCameraPixelBuffer(frame.capturedImage,
-                                     named: name,
-                                     in: folder,
-                                     overlayText: overlayText)
+    @MainActor
+    func saveValidationImage(
+        from source: ValidationImageSource,
+        named name: String,
+        in folder: URL,
+        overlayText: String? = nil
+    ) -> ValidationImageAssociation {
+        guard AppConfiguration.shared.enablePeakFrameImageCapture else {
+            return ValidationImageAssociation(
+                reference: nil,
+                imageSourceTimestamp: source.sourceTimestamp,
+                synchronizationStatus: .unavailable
+            )
+        }
+
+        let reference: String?
+        switch source.payload {
+        case .pixelBuffer(let pixelBuffer):
+            reference = saveCameraPixelBuffer(
+                pixelBuffer,
+                named: name,
+                in: folder,
+                overlayText: overlayText
+            )
+        case .encodedImageData(let data, _):
+            reference = writeEncodedImageData(data, named: name, in: folder)
+        }
+
+        return ValidationImageAssociation(
+            reference: reference,
+            imageSourceTimestamp: source.sourceTimestamp,
+            synchronizationStatus: reference == nil ? .writeFailed : .sameARFrame
+        )
     }
 
+    @MainActor
     func saveCameraPixelBuffer(_ pixelBuffer: CVPixelBuffer,
                                named name: String,
                                in folder: URL,
@@ -60,6 +84,7 @@ final class ImageCaptureService {
         }
     }
 
+    @MainActor
     func savePlaceholderImage(named name: String, in folder: URL) -> String? {
         guard AppConfiguration.shared.enablePeakFrameImageCapture else { return nil }
         let size = CGSize(width: 64, height: 64)
@@ -78,6 +103,19 @@ final class ImageCaptureService {
         guard let data = image.pngData() else { return nil }
         try? data.write(to: fileURL)
         return fileURL.path
+    }
+
+    private func writeEncodedImageData(_ data: Data, named name: String, in folder: URL) -> String? {
+        let safeName = name
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+        let fileURL = folder.appendingPathComponent("\(safeName).jpg")
+        do {
+            try data.write(to: fileURL, options: [.atomic])
+            return fileURL.path
+        } catch {
+            return nil
+        }
     }
 
     private func resized(_ image: UIImage, maxDimension: CGFloat) -> UIImage {

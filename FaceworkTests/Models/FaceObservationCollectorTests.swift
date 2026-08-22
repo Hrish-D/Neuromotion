@@ -350,6 +350,7 @@ final class FaceObservationCollectorTests: XCTestCase {
             recordingID: TestFixtures.deterministicUUID(999),
             mode: .neutral,
             observation: observation,
+            validationImageSource: nil,
             cameraTrackingState: cameraTrackingState
         )
     }

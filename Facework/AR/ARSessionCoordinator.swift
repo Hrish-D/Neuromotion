@@ -12,24 +12,33 @@ final class ARSessionCoordinator: NSObject, ARSessionDelegate {
     weak var manager: FaceTrackingManager?
 
     func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
-        let faceAnchors = anchors.compactMap { $0 as? ARFaceAnchor }
-        // Callback-sampled current-frame time; ARFaceAnchor has no intrinsic timestamp.
-        let timestamp = session.currentFrame?.timestamp ?? CACurrentMediaTime()
+        guard let frame = session.currentFrame else {
+            process(.noFaceUpdate(sourceTimestamp: CACurrentMediaTime()))
+            return
+        }
+        let timestamp = frame.timestamp
+        let cameraTrackingState = String(describing: frame.camera.trackingState)
+        let faceAnchors = frame.anchors.compactMap { $0 as? ARFaceAnchor }
 
         if faceAnchors.count == 1, let faceAnchor = faceAnchors.first {
             process(
                 .faceUpdate(
                     FaceTrackingSnapshotInput(
-                    sourceTimestamp: timestamp,
-                    rawBlendshapes: BlendshapeMapper.map(faceAnchor.blendShapes),
-                    faceTransform: faceAnchor.transform,
-                    faceIsPresent: true,
-                    visibleFaceCount: 1,
-                    trackingState: .tracking,
-                    faceCenter: CGPoint(x: 0.5, y: 0.5),
-                    faceScale: 0.35
+                        sourceTimestamp: timestamp,
+                        rawBlendshapes: BlendshapeMapper.map(faceAnchor.blendShapes),
+                        faceTransform: faceAnchor.transform,
+                        faceIsPresent: true,
+                        visibleFaceCount: 1,
+                        trackingState: .tracking,
+                        faceCenter: CGPoint(x: 0.5, y: 0.5),
+                        faceScale: 0.35
                     )
-                )
+                ),
+                validationImageSource: ValidationImageSource(
+                    sourceTimestamp: timestamp,
+                    payload: .pixelBuffer(frame.capturedImage)
+                ),
+                frameCameraTrackingState: cameraTrackingState
             )
         } else if faceAnchors.count > 1 {
             // Face tracking currently uses ARKit's default maximum of one face.
@@ -38,10 +47,14 @@ final class ARSessionCoordinator: NSObject, ARSessionDelegate {
                 .multipleFaceUpdate(
                     sourceTimestamp: timestamp,
                     updatedFaceAnchorCount: faceAnchors.count
-                )
+                ),
+                frameCameraTrackingState: cameraTrackingState
             )
         } else {
-            process(.noFaceUpdate(sourceTimestamp: timestamp))
+            process(
+                .noFaceUpdate(sourceTimestamp: timestamp),
+                frameCameraTrackingState: cameraTrackingState
+            )
         }
     }
 
@@ -52,8 +65,18 @@ final class ARSessionCoordinator: NSObject, ARSessionDelegate {
         process(.faceRemoved(sourceTimestamp: timestamp))
     }
 
-    func process(_ event: FaceTrackingCallbackEvent) {
-        manager?.receive(FaceTrackingEventProcessor.observation(for: event))
+    func process(
+        _ event: FaceTrackingCallbackEvent,
+        validationImageSource: ValidationImageSource? = nil,
+        frameCameraTrackingState: String? = nil
+    ) {
+        manager?.receive(
+            SynchronizedFaceObservationBuilder.make(
+                event: event,
+                validationImageSource: validationImageSource,
+                frameCameraTrackingState: frameCameraTrackingState
+            )
+        )
     }
 
     func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {

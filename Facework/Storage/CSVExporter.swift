@@ -100,16 +100,28 @@ struct CSVExporter {
             "imageReference"
         ]
 
-        lines.append((header + identityHeaders).map { escape($0) }.joined(separator: ","))
+        let synchronizationHeaders: [String] = [
+            "rawFrameID",
+            "recordingID",
+            "measurementSourceTimestamp",
+            "imageSourceTimestamp",
+            "synchronizationStatus"
+        ]
+
+        lines.append((header + identityHeaders + synchronizationHeaders).map { escape($0) }.joined(separator: ","))
 
         let imageFrames = frames.filter { frame in
-            guard let imageReference = frame.imageReference else { return false }
-            return !imageReference.isEmpty
+            if let imageReference = frame.imageReference, !imageReference.isEmpty {
+                return true
+            }
+            return frame.raw.validationImageSynchronizationStatus != nil
         }
 
         for frame in imageFrames {
             let imageReference = frame.imageReference ?? ""
-            let imageFileName = URL(fileURLWithPath: imageReference).lastPathComponent
+            let imageFileName = imageReference.isEmpty
+                ? ""
+                : URL(fileURLWithPath: imageReference).lastPathComponent
 
             var row: [String] = [
                 frame.taskType.rawValue,
@@ -121,6 +133,13 @@ struct CSVExporter {
                 imageReference
             ]
             row += identityValues(metadata)
+            row.append(contentsOf: [
+                frame.id.uuidString,
+                frame.raw.recordingID?.uuidString ?? "",
+                String(frame.timestamp),
+                frame.imageSourceTimestamp.map { String($0) } ?? "",
+                frame.imageSynchronizationStatus?.rawValue ?? ""
+            ])
 
             lines.append(row.map { escape($0) }.joined(separator: ","))
         }

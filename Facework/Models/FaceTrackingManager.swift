@@ -12,7 +12,7 @@ import Combine
 
 @MainActor
 protocol FaceObservationProviding: AnyObject {
-    var observations: AnyPublisher<FaceTrackingObservation, Never> { get }
+    var observations: AnyPublisher<SynchronizedFaceObservation, Never> { get }
 }
 
 @MainActor
@@ -28,7 +28,7 @@ final class FaceTrackingManager: NSObject, ObservableObject, FaceObservationProv
     @Published var latestTimestamp: TimeInterval = 0
     @Published private(set) var latestObservation: FaceTrackingObservation?
 
-    var observations: AnyPublisher<FaceTrackingObservation, Never> {
+    var observations: AnyPublisher<SynchronizedFaceObservation, Never> {
         observationSubject.eraseToAnyPublisher()
     }
 
@@ -37,7 +37,7 @@ final class FaceTrackingManager: NSObject, ObservableObject, FaceObservationProv
         coordinator.manager = self
         return coordinator
     }()
-    private let observationSubject = PassthroughSubject<FaceTrackingObservation, Never>()
+    private let observationSubject = PassthroughSubject<SynchronizedFaceObservation, Never>()
     private(set) lazy var session: ARSession = {
         let session = ARSession()
         session.delegate = coordinator
@@ -76,7 +76,8 @@ final class FaceTrackingManager: NSObject, ObservableObject, FaceObservationProv
         }
     }
 
-    func receive(_ observation: FaceTrackingObservation) {
+    func receive(_ synchronizedObservation: SynchronizedFaceObservation) {
+        let observation = synchronizedObservation.observation
         switch observation.trackingState {
         case .tracking:
             latestTimestamp = observation.sourceTimestamp
@@ -98,7 +99,11 @@ final class FaceTrackingManager: NSObject, ObservableObject, FaceObservationProv
         trackingStateDescription = observation.trackingState.description
         latestObservation = observation
 
-        observationSubject.send(observation)
+        observationSubject.send(synchronizedObservation)
+    }
+
+    func receive(_ observation: FaceTrackingObservation) {
+        receive(SynchronizedFaceObservation(observation: observation))
     }
 
     static func poseFromTransform(_ transform: simd_float4x4) -> HeadPose {
