@@ -56,6 +56,14 @@ digest over canonical little-endian counts, triangle indices, and texture
 coordinates. Missing, invalid, or incompatible geometry never removes the
 numerical raw frame and never produces fabricated vertices.
 
+Prompt 12 is complete in code and adds a research-only inspector for those stored immutable artifacts.
+`Previous Sessions` opens one selected raw mesh frame at a time in a SceneKit
+viewport without starting ARKit. Pure value services provide deterministic
+selection, topology neighbors, same-index trajectories, and explicit-neutral
+displacement. Separately stored research drafts contain manually labeled
+vertex landmarks, regions, lines, ordered polylines, and three-point planes.
+Every draft is bound to its exact topology ID and remains lifecycle `draft`.
+
 The primary flow is setup, device readiness, neutral calibration, six guided
 movement tasks, session summary, and export.
 
@@ -94,6 +102,11 @@ movement tasks, session summary, and export.
   missing/incompatible records, and pre-export association validation.
 - Generic topology-bound versionable landmark definitions and exact mesh-index
   extraction, with no production anatomical configuration active.
+- Stored-session mesh inspection with vertex tap/search, exact raw XYZ display,
+  orientation presets, explicit neutral reference selection, raw trajectories,
+  and research-only displacement display.
+- Separate topology-bound draft import/export for manually named landmarks,
+  explicit subject-side labels, regions, lines, polylines, and planes.
 - Legacy metadata decoding that preserves historical fields without assigning
   current analysis or capture versions to old sessions.
 - Generic physical-device application builds.
@@ -204,8 +217,10 @@ texture-coordinate arrays plus triangle count, and documents constant
 triangle/vertex counts with only positions changing frame-to-frame. It does not
 publish numeric physical-device counts. The simulator neutral-geometry
 constructor reports 0 vertices, 0 triangles, and 0 texture coordinates and is
-not a TrueDepth topology measurement; actual device counts and topology ID must
-be recorded during Prompt 11 physical verification.
+not a TrueDepth topology measurement. Prompt 11 physical verification measured
+1,220 vertices, 2,304 triangles, 6,912 triangle indices, and 1,220 texture
+coordinates. The observed topology ID was
+`facework-sha256-v1:7dbc22bf4074390b33db8d71059768b48a7a5199b9d3c3fc199ef4c91893376e`.
 
 Raw positions use ARKit face-anchor coordinates and meter/Float semantics with
 no transform, centering, smoothing, denoising, interpolation, or side reversal.
@@ -222,6 +237,15 @@ Prompt 10 files, CSVs, images, ZIP, and sharing remain additive and unchanged.
 No vertex arrays are added to merged CSVs or session summary. No virtual or
 interpolated points, custom vision model, pixel projection, or clinical anatomy
 mapping is introduced by Prompt 11.
+
+Prompt 12 writes annotations only to
+`research_face_geometry_configuration.json`. Import rejects topology mismatch
+and unknown vertices/references without remapping. Coordinates remain meters
+internally; millimeters are display-only. Editable side labels are explicit
+`subjectLeft`, `subjectRight`, `midline`, or `unspecified` and are never inferred
+clinically. No RGB overlay is attempted because exact offline projection would
+also require persisted camera projection/intrinsics and complete image
+orientation, crop, and resize provenance.
 
 ## Test status
 
@@ -264,6 +288,10 @@ raw linkage, missing/incompatible geometry, topology identity and round trips,
 structured export separation, QC independence, generic topology-bound
 landmark validation/extraction, current identity, and historical truthfulness.
 Exact final Prompt 11 suite totals are recorded in the implementation report.
+Prompt 12 editor-correction verification executes 225 unit tests: 223 pass,
+zero fail, and the same two simulator ARSession characterization tests skip.
+The 27 focused mesh-inspection/editor tests all pass. All six UI test
+executions pass without changing the five established UI methods.
 
 Repository search confirmed that `AppConfiguration` is never encoded or
 decoded. Its unused `Codable` conformance and hardcoded app-version field were
@@ -302,13 +330,56 @@ timestamps, no non-finite values, approximately 8.57 Hz accepted cadence, and
 Prompt 9 retry-baseline isolation preserved. Accepted-cadence consistency
 remains an outstanding scientific limitation.
 
+Prompt 11 physical verification subsequently completed with 490 raw frames,
+490 processed frames, 490 available mesh frames, zero missing mesh frames, 54
+validation images, and 18/18 valid repetitions. The mesh topology and identity
+matched the physical characterization documented above.
+
+Initial Prompt 12 physical inspection confirmed that the stored session,
+1,220/2,304 topology, 490 mesh frames, task/frame controls, and vertex-index
+selection loaded correctly, but every SceneKit visual layer rendered blank on
+the real iPhone. The renderer placed its camera only 0.35 m from the uncentered
+mesh while leaving SceneKit's default near clipping plane unchanged, so the
+mesh, point primitives, and selected-marker spheres could all be clipped. The
+correction now computes each selected frame's bounds, centers it only in the
+display node, derives orthographic scale and explicit near/far planes from the
+rotated bounds and viewport aspect ratio, and uses opaque constant-lit colors
+and larger point markers. Presets reframe automatically and Reset View returns
+to deterministic Front framing. Raw mesh data and all scientific versions are
+unchanged. Prompt 12 remains pending this focused physical rendering retest.
+
+The index field intentionally retains the iOS number pad. Negative and
+nonnumeric invalid values remain automated-test cases; the focused physical
+invalid case is the dynamic upper boundary (`topology.vertexCount`, physically
+1,220), with feedback displayed beside the search field. No hard-coded 1,219
+validation rule was introduced.
+
+The successful physical rendering retest exposed the next editor-layer issues:
+draft-region membership and landmark selection were disconnected, geometry
+creation depended on remembered landmark toggles and implicit creation order,
+and saved draft objects had no useful mesh overlays. The physical draft export
+contained three valid lines named `Test line` although the intended test called
+for one. Static audit confirmed that each button press created one line; the
+shared toggle set and name persisted, allowing three presses with different
+pairs to create A–B, B–C, and A–C without visible endpoint confirmation. The
+corrected editor now offers named-landmark or explicit raw-vertex point choices,
+visible A/B line and A/B/C plane builders, an ordered polyline builder, current
+region add/remove/clear feedback, saved-object inspection and safe deletion,
+and display-only SceneKit overlays for landmarks, saved/current regions, lines,
+polylines, and planes. Successful builders and saved-region creation clear
+their temporary state. Imported historical drafts—including the valid
+three-line physical export—retain the same Codable schema and immediately
+restore overlays. Prompt 12 remains pending final corrected human workflow
+verification; raw acquisition, analysis, topology binding, and all five
+scientific version values are unchanged.
+
 Use synthetic or consenting non-identifiable data during development. Exported
 participant sessions, research data, facial images, and local logs must remain
 outside version control.
 
 ## Next implementation phase
 
-Face-mesh inspection, research landmark mapping, and regional geometry definitions.
+Clinician-reviewed candidate anatomical landmark configuration and regional measurement engine.
 
 Prompt 9 calibration/QC is complete in code pending physical retry
 verification. Zero eligible frames now fail; no zero or hard-invalid fallback
@@ -334,7 +405,9 @@ issues. Absolute image paths and the `private` ZIP-prefix issue remain
 unresolved. Prompt 11 guarantees same-ARFrame RGB/measurement/mesh provenance.
 Depth and infrared synchronization remain unimplemented. No production
 landmark mapping, virtual/interpolated point, physician configuration UI,
-custom model, new clinical score, or clinical validation exists. Empirical
+custom model, new clinical score, or clinical validation exists. Prompt 12
+creates draft-only research annotations and does not activate a production
+landmark configuration or change raw, capture, analysis, or mesh versions. Empirical
 calibration thresholds require broader participant data. The Prompt 8 capture-button label overlap
 was corrected without changing actions, timing, or capture state.
 

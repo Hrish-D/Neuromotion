@@ -16,5 +16,6 @@ enum AppRoute: Hashable {
     case taskExecution(TaskType)
     case sessionSummary
     case previousSessions
+    case meshInspector(URL)
     case settings
 }

@@ -8,6 +8,39 @@ nonisolated struct FaceLandmarkDefinition: Codable, Equatable, Identifiable, Sen
     let id: String
     let displayName: String
     let source: FaceLandmarkSource
+    let side: FaceSubjectSide
+    let category: String?
+    let notes: String?
+
+    init(
+        id: String,
+        displayName: String,
+        source: FaceLandmarkSource,
+        side: FaceSubjectSide = .unspecified,
+        category: String? = nil,
+        notes: String? = nil
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.source = source
+        self.side = side
+        self.category = category
+        self.notes = notes
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, displayName, source, side, category, notes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        source = try container.decode(FaceLandmarkSource.self, forKey: .source)
+        side = try container.decodeIfPresent(FaceSubjectSide.self, forKey: .side) ?? .unspecified
+        category = try container.decodeIfPresent(String.self, forKey: .category)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+    }
 }
 
 nonisolated struct FaceLandmarkConfiguration: Codable, Equatable, Sendable {

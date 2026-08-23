@@ -20,6 +20,7 @@ struct PreviousSessionsView: View {
                 )
             } else {
                 List(viewModel.sessionFolders, id: \.self) { url in
+                    NavigationLink(value: AppRoute.meshInspector(url)) {
                     HStack(spacing: 12) {
                         Image(systemName: "folder.fill")
                             .foregroundStyle(Color.accentColor)
@@ -35,6 +36,7 @@ struct PreviousSessionsView: View {
                             .foregroundStyle(.tertiary)
                     }
                     .padding(.vertical, 4)
+                    }
                 }
                 .scrollContentBackground(.hidden)
             }

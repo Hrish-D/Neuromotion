@@ -65,6 +65,8 @@ struct HomeView: View {
                     SessionSummaryView()
                 case .previousSessions:
                     PreviousSessionsView()
+                case .meshInspector(let folderURL):
+                    FaceMeshInspectorView(folderURL: folderURL)
                 case .settings:
                     SettingsView()
                 }
