@@ -7,13 +7,21 @@ struct FaceMeshInspectorView: View {
     @State private var searchText = ""
     @State private var landmarkName = ""
     @State private var regionName = ""
-    @State private var side: FaceSubjectSide = .unspecified
+    @State private var landmarkSide: FaceSubjectSide = .unspecified
+    @State private var regionSide: FaceSubjectSide = .unspecified
     @State private var notes = ""
     @State private var geometryName = ""
     @State private var polylineChoice: DraftPointChoice?
     @State private var showingImporter = false
-    @State private var showingShare = false
+    @State private var shareItems: [URL] = []
     @State private var resetViewGeneration = 0
+    @State private var landmarkPairName = ""
+    @State private var regionPairName = ""
+    @State private var leftLandmarkID = ""
+    @State private var rightLandmarkID = ""
+    @State private var leftRegionID = ""
+    @State private var rightRegionID = ""
+    @State private var scaleReferenceLineID = ""
 
     init(folderURL: URL) {
         _viewModel = StateObject(wrappedValue: FaceMeshInspectorViewModel(folderURL: folderURL))
@@ -31,6 +39,7 @@ struct FaceMeshInspectorView: View {
                                                 selectedVertexIndex: viewModel.selectedVertexIndex,
                                                 regionVertexIndices: viewModel.highlightedRegionVertices,
                                                 draftConfiguration: viewModel.overlayConfiguration,
+                                                displacementOverlay: viewModel.selectedDisplacementOverlay,
                                                 preset: preset,
                                                 resetViewGeneration: resetViewGeneration) { viewModel.selectedVertexIndex = $0 }
                             .frame(minHeight: 390)
@@ -41,6 +50,8 @@ struct FaceMeshInspectorView: View {
                         selectedVertexCard
                         referenceAndTrajectory
                         draftControls
+                        prompt13AnalysisControls
+                        candidateMeasurementPanel
                     }
                 } else {
                     ContentUnavailableView("Mesh Data Unavailable", systemImage: "point.3.connected.trianglepath.dotted",
@@ -55,8 +66,8 @@ struct FaceMeshInspectorView: View {
         .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
             if case .success(let url) = result { viewModel.importDraft(from: url) }
         }
-        .sheet(isPresented: $showingShare) {
-            if let url = viewModel.exportedDraftURL { ActivityView(activityItems: [url]) }
+        .sheet(isPresented: Binding(get: { !shareItems.isEmpty }, set: { if !$0 { shareItems = [] } })) {
+            ActivityView(activityItems: shareItems)
         }
     }
 
@@ -173,14 +184,18 @@ struct FaceMeshInspectorView: View {
             VStack(alignment: .leading, spacing: 10) {
                 FaceworkSectionHeader("Draft research configuration", subtitle: "Manual labels do not imply anatomical or clinical validation.")
                 TextField("Research label", text: $landmarkName).textFieldStyle(.roundedBorder)
-                Picker("Subject side", selection: $side) { ForEach(FaceSubjectSide.allCases, id: \.self) { Text($0.displayName).tag($0) } }
+                Picker("Landmark side", selection: $landmarkSide) { ForEach(FaceSubjectSide.allCases, id: \.self) { Text($0.displayName).tag($0) } }
                 TextField("Optional notes", text: $notes, axis: .vertical).textFieldStyle(.roundedBorder)
-                Button("Add Draft Landmark") { viewModel.addLandmark(name: landmarkName, side: side, category: nil, notes: notes) }
+                Button("Add Draft Landmark") { viewModel.addLandmark(name: landmarkName, side: landmarkSide, category: nil, notes: notes) }
                     .buttonStyle(FaceworkSecondaryButtonStyle())
                 Divider()
                 Text("Selected region vertices (\(viewModel.regionSelection.count)): \(regionVertexDescriptions)").font(.caption).textSelection(.enabled)
                 TextField("Draft region name", text: $regionName).textFieldStyle(.roundedBorder)
-                Button("Create Draft Region") { viewModel.addRegion(name: regionName, side: side, notes: notes) }
+                Picker("Region side", selection: $regionSide) {
+                    ForEach(FaceSubjectSide.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                }
+                .accessibilityIdentifier("draftRegionSidePicker")
+                Button("Create Draft Region") { viewModel.addRegion(name: regionName, side: regionSide, notes: notes) }
                     .buttonStyle(FaceworkSecondaryButtonStyle())
                 Button("Clear Draft Region") { viewModel.clearRegionSelection() }.buttonStyle(.bordered)
                 Divider()
@@ -219,7 +234,10 @@ struct FaceMeshInspectorView: View {
                 Toggle("Show Draft Geometry", isOn: $viewModel.showDraftGeometry)
                 savedDraftObjects
                 Divider()
-                Button("Export Draft Configuration") { viewModel.exportDraft(); showingShare = viewModel.exportedDraftURL != nil }
+                Button("Export Draft Configuration") {
+                    viewModel.exportDraft()
+                    if let url = viewModel.exportedDraftURL { shareItems = [url] }
+                }
                     .buttonStyle(FaceworkPrimaryButtonStyle())
                 Button("Import Draft Configuration") { showingImporter = true }.buttonStyle(FaceworkSecondaryButtonStyle())
                 if let draft = viewModel.draft {
@@ -229,6 +247,301 @@ struct FaceMeshInspectorView: View {
                 if let message = viewModel.message { Text(message).font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
             }
         }
+    }
+
+    private var prompt13AnalysisControls: some View {
+        FaceworkCard {
+            VStack(alignment: .leading, spacing: 12) {
+                FaceworkSectionHeader("Prompt 13 Analysis Configuration", subtitle: "Research-only quantitative geometry analysis")
+                    .accessibilityIdentifier(Prompt13AnalysisControl.configuration.rawValue)
+                Text("These controls are separate from the Prompt 12 draft geometry builders.")
+                    .font(.caption).foregroundStyle(.secondary)
+
+                DisclosureGroup("Bilateral Landmark Pairs") {
+                    Text(sideEligibilityText(kind: "landmarks", leftCount: subjectLeftLandmarks.count, rightCount: subjectRightLandmarks.count))
+                        .font(.caption).foregroundStyle(.secondary)
+                    TextField("Pair name", text: $landmarkPairName).textFieldStyle(.roundedBorder)
+            Picker("Subject-left landmark", selection: $leftLandmarkID) {
+                Text("Choose").tag("")
+                        ForEach(subjectLeftLandmarks) { Text(landmarkPickerLabel($0)).tag($0.id) }
+            }
+            Picker("Subject-right landmark", selection: $rightLandmarkID) {
+                Text("Choose").tag("")
+                        ForEach(subjectRightLandmarks) { Text(landmarkPickerLabel($0)).tag($0.id) }
+            }
+                    Button("Create Bilateral Landmark Pair") {
+                        viewModel.addBilateralLandmarkPair(name: landmarkPairName, leftID: leftLandmarkID, rightID: rightLandmarkID)
+                        landmarkPairName = ""; leftLandmarkID = ""; rightLandmarkID = ""
+                    }.disabled(leftLandmarkID.isEmpty || rightLandmarkID.isEmpty)
+                        .accessibilityIdentifier("createBilateralLandmarkPair")
+                    ForEach(viewModel.bilateralLandmarkPairs) { pair in
+                        pairRow(pair.displayName,
+                                detail: "Left: \(landmarkName(pair.subjectLeftLandmarkID)) · Right: \(landmarkName(pair.subjectRightLandmarkID))") {
+                            viewModel.deleteBilateralLandmarkPair(id: pair.id)
+                        }
+                    }
+                    Text("Saved landmark pairs: \(viewModel.bilateralLandmarkPairs.count)").font(.caption.bold())
+                }
+                .accessibilityIdentifier(Prompt13AnalysisControl.bilateralLandmarkPairs.rawValue)
+
+                DisclosureGroup("Bilateral Region Pairs") {
+                    Text(sideEligibilityText(kind: "regions", leftCount: subjectLeftRegions.count, rightCount: subjectRightRegions.count))
+                        .font(.caption).foregroundStyle(.secondary)
+                    TextField("Pair name", text: $regionPairName).textFieldStyle(.roundedBorder)
+            Picker("Subject-left region", selection: $leftRegionID) {
+                Text("Choose").tag("")
+                        ForEach(subjectLeftRegions) { Text(regionPickerLabel($0)).tag($0.id) }
+            }
+            Picker("Subject-right region", selection: $rightRegionID) {
+                Text("Choose").tag("")
+                        ForEach(subjectRightRegions) { Text(regionPickerLabel($0)).tag($0.id) }
+            }
+                    Button("Create Bilateral Region Pair") {
+                        viewModel.addBilateralRegionPair(name: regionPairName, leftID: leftRegionID, rightID: rightRegionID)
+                        regionPairName = ""; leftRegionID = ""; rightRegionID = ""
+                    }.disabled(leftRegionID.isEmpty || rightRegionID.isEmpty)
+                        .accessibilityIdentifier("createBilateralRegionPair")
+                    ForEach(viewModel.bilateralRegionPairs) { pair in
+                        pairRow(pair.displayName,
+                                detail: "Left: \(draftRegionName(pair.subjectLeftRegionID)) · Right: \(draftRegionName(pair.subjectRightRegionID))") {
+                            viewModel.deleteBilateralRegionPair(id: pair.id)
+                        }
+                    }
+                    Text("Saved region pairs: \(viewModel.bilateralRegionPairs.count)").font(.caption.bold())
+                }
+                .accessibilityIdentifier(Prompt13AnalysisControl.bilateralRegionPairs.rawValue)
+
+                DisclosureGroup("Scale Reference") {
+                    Text("Optional. None preserves raw millimetre analysis without normalization.").font(.caption).foregroundStyle(.secondary)
+            Picker("Optional scale-reference line", selection: $scaleReferenceLineID) {
+                Text("None").tag("")
+                ForEach(viewModel.draft?.lines ?? []) { Text($0.displayName).tag($0.id) }
+            }
+                    Text("Selected: \(scaleReferenceLineID.isEmpty ? "None" : lineName(scaleReferenceLineID))").font(.caption)
+                }
+                .accessibilityIdentifier(Prompt13AnalysisControl.scaleReference.rawValue)
+
+                DisclosureGroup("Candidate Configuration") {
+                    candidateDraftReview
+            Button("Freeze as Candidate for Analysis") {
+                viewModel.freezeCandidate(scaleReferenceLineID: scaleReferenceLineID.isEmpty ? nil : scaleReferenceLineID)
+                    }.buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("freezeCandidateForAnalysis")
+            if let candidate = viewModel.candidate {
+                        candidateReview(candidate)
+                    }
+                }
+                .accessibilityIdentifier(Prompt13AnalysisControl.candidateConfiguration.rawValue)
+
+                DisclosureGroup("Neutral Reference") {
+                    Text(viewModel.candidate == nil ? "Requires a frozen candidate configuration." : "Select frames from the final successful neutral calibration attempt.")
+                        .font(.caption).foregroundStyle(viewModel.candidate == nil ? Color.secondary : Color.orange)
+                    Text("Eligible frames: \(viewModel.neutralMeshCandidates.count) · Selected: \(viewModel.selectedNeutralMeshFrameIDs.count)")
+                        .font(.caption)
+                    if let span = selectedNeutralSpan { Text(String(format: "Selected timestamp span: %.6f s", span)).font(.caption) }
+                ForEach(viewModel.neutralMeshCandidates) { frame in
+                    Toggle("Frame \(frame.frameIndex) · \(String(format: "%.6f", frame.sourceTimestamp))", isOn: Binding(
+                        get: { viewModel.selectedNeutralMeshFrameIDs.contains(frame.id) },
+                        set: { _ in viewModel.toggleNeutralFrame(frame.id) }
+                    ))
+                            .disabled(viewModel.candidate == nil)
+                }
+                    Button("Create Neutral Reference") { viewModel.createNeutralReference() }
+                        .disabled(viewModel.candidate == nil || viewModel.selectedNeutralMeshFrameIDs.isEmpty)
+                        .accessibilityIdentifier("createNeutralReference")
+                    if let reference = viewModel.neutralReference {
+                        Text("Neutral Reference ID: \(reference.neutralReferenceID)").font(.caption2).textSelection(.enabled)
+                        Text(String(format: "%d frames · %.6f s", reference.neutralFrameCount, reference.neutralTimeSpanSeconds)).font(.caption)
+                        ForEach(reference.researchQCWarnings, id: \.self) { Text($0).font(.caption).foregroundStyle(.orange) }
+                    }
+                }
+                .accessibilityIdentifier(Prompt13AnalysisControl.neutralReference.rawValue)
+
+                DisclosureGroup("Analysis") {
+                    Text(analysisReadinessText).font(.caption).foregroundStyle(.secondary)
+                    Button("Analyze Candidate Geometry Offline") { viewModel.analyzeCandidate() }
+                    .buttonStyle(FaceworkPrimaryButtonStyle())
+                        .disabled(viewModel.candidate == nil || viewModel.neutralReference == nil)
+                        .accessibilityIdentifier("analyzeCandidateGeometryOffline")
+                    if let package = viewModel.measurementPackage {
+                        Text("Complete: \(package.frames.count) available mesh-frame results · \(package.unavailableMeshFrames.count) unavailable mesh frames")
+                            .font(.caption)
+                    }
+                }
+                .accessibilityIdentifier(Prompt13AnalysisControl.analysis.rawValue)
+
+                DisclosureGroup("Prompt 13 Analysis Exports") {
+                    exportButton("Export Candidate Configuration", enabled: viewModel.candidate != nil) { viewModel.exportCandidateArtifact() }
+                    exportButton("Export Neutral Reference", enabled: viewModel.neutralReference != nil) { viewModel.exportNeutralReferenceArtifact() }
+                    exportButton("Export Geometry Measurements", enabled: viewModel.measurementPackage != nil) { viewModel.exportMeasurementRecordsArtifact() }
+                    exportButton("Export Measurement Summary", enabled: viewModel.measurementPackage != nil) { viewModel.exportMeasurementSummaryArtifact() }
+                    Text("These are separate derived research artifacts from Export Draft Configuration.").font(.caption).foregroundStyle(.secondary)
+                }
+                .accessibilityIdentifier(Prompt13AnalysisControl.exports.rawValue)
+
+                if let message = viewModel.message { Text(message).font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
+            }
+        }
+    }
+
+    private var subjectLeftLandmarks: [FaceLandmarkDefinition] { (viewModel.draft?.landmarks ?? []).filter { $0.side == .subjectLeft } }
+    private var subjectRightLandmarks: [FaceLandmarkDefinition] { (viewModel.draft?.landmarks ?? []).filter { $0.side == .subjectRight } }
+    private var subjectLeftRegions: [FaceRegionDefinition] { (viewModel.draft?.regions ?? []).filter { $0.side == .subjectLeft } }
+    private var subjectRightRegions: [FaceRegionDefinition] { (viewModel.draft?.regions ?? []).filter { $0.side == .subjectRight } }
+
+    private func landmarkPickerLabel(_ landmark: FaceLandmarkDefinition) -> String {
+        let index: String
+        if case .meshVertex(let value) = landmark.source { index = "vertex \(value)" } else { index = "unknown vertex" }
+        return "\(landmark.displayName) · \(landmark.side.displayName) · \(index)"
+    }
+    private func regionPickerLabel(_ region: FaceRegionDefinition) -> String {
+        "\(region.displayName) · \(region.side.displayName) · \(region.vertexIndices.count) vertices"
+    }
+    private func sideEligibilityText(kind: String, leftCount: Int, rightCount: Int) -> String {
+        guard leftCount > 0, rightCount > 0 else { return "Requires at least one Subject Left and one Subject Right \(kind)." }
+        return "Available: \(leftCount) Subject Left · \(rightCount) Subject Right"
+    }
+    private func landmarkName(_ id: String) -> String { viewModel.draft?.landmarks.first { $0.id == id }?.displayName ?? id }
+    private func draftRegionName(_ id: String) -> String { viewModel.draft?.regions.first { $0.id == id }?.displayName ?? id }
+    private func lineName(_ id: String) -> String { viewModel.draft?.lines.first { $0.id == id }?.displayName ?? id }
+
+    private func pairRow(_ title: String, detail: String, delete: @escaping () -> Void) -> some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading) { Text(title).font(.subheadline.bold()); Text(detail).font(.caption).foregroundStyle(.secondary) }
+            Spacer(); deleteButton(action: delete)
+        }
+    }
+
+    @ViewBuilder private var candidateDraftReview: some View {
+        if let draft = viewModel.draft {
+            Text("Draft source: \(draft.configurationID) · \(draft.draftRevision)").font(.caption2).textSelection(.enabled)
+            Text("Topology: \(draft.requiredTopologyID)").font(.caption2).textSelection(.enabled)
+            Text("\(draft.landmarks.count) landmarks · \(draft.regions.count) regions · \(draft.lines.count) lines") .font(.caption)
+            Text("\(draft.polylines.count) polylines · \(draft.planes.count) planes").font(.caption)
+            Text("\(viewModel.bilateralLandmarkPairs.count) bilateral landmark pairs · \(viewModel.bilateralRegionPairs.count) bilateral region pairs").font(.caption)
+            Text("Scale reference: \(scaleReferenceLineID.isEmpty ? "None" : lineName(scaleReferenceLineID))").font(.caption)
+            Text("Research-only. Not clinically validated.").font(.caption.bold()).foregroundStyle(.orange)
+        }
+    }
+
+    private func candidateReview(_ candidate: CandidateFaceGeometryConfiguration) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Status: Candidate for Review").font(.headline)
+            Text("Candidate ID: \(candidate.configurationID)").font(.caption2).textSelection(.enabled)
+            Text("Configuration version: \(candidate.configurationVersion)").font(.caption)
+            Text("Configuration hash: \(candidate.configurationHash)").font(.caption2).textSelection(.enabled)
+            Text("Required topology: \(candidate.requiredTopologyID)").font(.caption2).textSelection(.enabled)
+            Text("Source draft: \(candidate.sourceDraftConfigurationID) · \(candidate.sourceDraftRevision)").font(.caption2).textSelection(.enabled)
+            Text("Research-only. Not clinically validated.").font(.caption.bold()).foregroundStyle(.orange)
+        }
+        .accessibilityIdentifier("candidateConfigurationReview")
+    }
+
+    private var selectedNeutralSpan: TimeInterval? {
+        let timestamps = viewModel.neutralMeshCandidates.filter { viewModel.selectedNeutralMeshFrameIDs.contains($0.id) }.map(\.sourceTimestamp)
+        guard let first = timestamps.min(), let last = timestamps.max() else { return nil }
+        return last - first
+    }
+    private var analysisReadinessText: String {
+        if viewModel.candidate == nil { return "Requires a frozen candidate configuration." }
+        if viewModel.neutralReference == nil { return "Requires a created neutral reference." }
+        return viewModel.measurementPackage == nil ? "Ready for offline analysis." : "Offline analysis complete."
+    }
+    private func exportButton(_ title: String, enabled: Bool, action: @escaping () -> URL?) -> some View {
+        Button(title) { if let url = action() { shareItems = [url] } }
+            .disabled(!enabled)
+            .buttonStyle(.bordered)
+    }
+
+    @ViewBuilder private var candidateMeasurementPanel: some View {
+        if let package = viewModel.measurementPackage {
+            FaceworkCard {
+                VStack(alignment: .leading, spacing: 7) {
+                    FaceworkSectionHeader("Candidate geometry measurements", subtitle: "Derived research quantities; no clinical score or interpretation.")
+                    Text("Neutral: \(package.neutralReference.neutralFrameCount) frames · \(String(format: "%.3f", package.neutralReference.neutralTimeSpanSeconds)) s")
+                    Text("Reference: \(package.neutralReference.neutralReferenceID)").font(.caption2).textSelection(.enabled)
+                    if let candidate = viewModel.candidate {
+                        DisclosureGroup("Candidate landmarks") {
+                            ForEach(candidate.landmarks) { landmark in
+                                Button(landmark.displayName + landmarkVertexSuffix(landmark)) {
+                                    viewModel.selectCandidateLandmark(landmark)
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        }
+                    }
+                    if let result = viewModel.selectedFrameMeasurements {
+                        if let selected = viewModel.selectedCandidateLandmarks.first,
+                           let value = result.landmarks.first(where: { $0.landmarkID == selected.id }),
+                           let raw = value.raw, let baseline = value.baseline, let delta = value.delta {
+                                DisclosureGroup("Landmark · \(selected.displayName)\(landmarkVertexSuffix(selected))") {
+                                    Text(vectorText("Raw", raw)); Text(vectorText("Neutral", baseline)); Text(vectorText("Change from neutral", delta))
+                                    Text(measurementText("3D displacement", value.displacementMagnitudeMeters))
+                                    Text(measurementText("Outward lateral", value.outwardLateralDisplacementMeters))
+                                    Text(measurementText("Superior", value.superiorDisplacementMeters))
+                                    Text(measurementText("Anterior", value.anteriorDisplacementMeters))
+                                }
+                        } else {
+                            Text("Select a candidate landmark vertex to inspect raw, neutral, and displacement measurements.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        ForEach(result.bilateralLandmarks) { value in
+                            let pair = viewModel.candidateLandmarkPair(value.pairID)
+                            DisclosureGroup("Bilateral Landmark Pair · \(pair?.displayName ?? value.pairID)") {
+                                if let pair {
+                                    Text("Subject Left: \(viewModel.candidateLandmarkName(pair.subjectLeftLandmarkID))")
+                                    Text("Subject Right: \(viewModel.candidateLandmarkName(pair.subjectRightLandmarkID))")
+                                }
+                                Text(measurementText("Left magnitude", value.leftMagnitudeMeters))
+                                Text(measurementText("Right magnitude", value.rightMagnitudeMeters))
+                                Text(measurementText("Magnitude difference", value.magnitudeDifferenceMeters))
+                                Text(measurementText("Vector mismatch", value.vectorMismatchMeters))
+                                Text(indexText("Asymmetry index", value.asymmetryIndex))
+                            }
+                        }
+                        ForEach(result.regions) { value in
+                            DisclosureGroup("Region · \(viewModel.candidateRegionName(value.regionID))") {
+                                Text(measurementText("Centroid displacement", value.centroidDisplacementMagnitudeMeters))
+                                Text(measurementText("RMS vertex displacement", value.rmsVertexDisplacementMeters))
+                                Text(measurementText("Mean vertex displacement", value.meanVertexDisplacementMagnitudeMeters))
+                                Text(measurementText("Maximum vertex displacement", value.maximumVertexDisplacementMagnitudeMeters))
+                            }
+                        }
+                        ForEach(result.bilateralRegions) { value in
+                            let pair = viewModel.candidateRegionPair(value.pairID)
+                            DisclosureGroup("Bilateral Region Pair · \(pair?.displayName ?? value.pairID)") {
+                                if let pair {
+                                    Text("Subject Left: \(viewModel.candidateRegionName(pair.subjectLeftRegionID))")
+                                    Text("Subject Right: \(viewModel.candidateRegionName(pair.subjectRightRegionID))")
+                                }
+                                Text(measurementText("Left centroid displacement", value.leftCentroidMagnitudeMeters))
+                                Text(measurementText("Right centroid displacement", value.rightCentroidMagnitudeMeters))
+                                Text(measurementText("Absolute centroid difference", value.absoluteCentroidDifferenceMeters))
+                                Text(measurementText("Centroid vector mismatch", value.centroidVectorMismatchMeters))
+                                Text(indexText("Centroid asymmetry index", value.centroidAsymmetryIndex))
+                                Text(measurementText("Left RMS displacement", value.leftRMSMeters))
+                                Text(measurementText("Right RMS displacement", value.rightRMSMeters))
+                                Text(measurementText("Absolute RMS difference", value.absoluteRMSDifferenceMeters))
+                                Text(indexText("RMS asymmetry index", value.rmsAsymmetryIndex))
+                            }
+                        }
+                    }
+                    Text("Derived exports: \(viewModel.derivedExportURLs.map(\.lastPathComponent).joined(separator: ", "))").font(.caption)
+                }
+            }
+        }
+    }
+
+    private func vectorText(_ name: String, _ value: GeometryVector3) -> String {
+        String(format: "%@ [%.3f, %.3f, %.3f] mm", name, value.x * 1_000, value.y * 1_000, value.z * 1_000)
+    }
+
+    private func measurementText(_ name: String, _ value: Double?) -> String {
+        value.map { String(format: "%@ %.3f mm", name, $0 * 1_000) } ?? "\(name): unavailable"
+    }
+
+    private func indexText(_ name: String, _ value: Double?) -> String {
+        value.map { String(format: "%@ %.6f (dimensionless)", name, $0) } ?? "\(name): unavailable"
     }
 
     private var regionVertexDescriptions: String {
@@ -256,9 +569,20 @@ struct FaceMeshInspectorView: View {
                 }
                 entityHeader("Regions")
                 ForEach(draft.regions) { region in
-                    HStack {
-                        Button("\(region.displayName) · \(region.vertexIndices.count) vertices") { viewModel.selectedSavedRegionID = region.id }
-                        Spacer(); deleteButton { viewModel.deleteRegion(id: region.id) }
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Button("\(region.displayName) · \(region.side.displayName) · \(region.vertexIndices.count) vertices") {
+                                viewModel.selectedSavedRegionID = region.id
+                            }
+                            Spacer(); deleteButton { viewModel.deleteRegion(id: region.id) }
+                        }
+                        Picker("Side for \(region.displayName)", selection: Binding(
+                            get: { region.side },
+                            set: { viewModel.updateDraftRegionSide(id: region.id, side: $0) }
+                        )) {
+                            ForEach(FaceSubjectSide.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                        }
+                        .font(.caption)
                     }
                 }
                 entityHeader("Lines")

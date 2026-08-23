@@ -1,5 +1,14 @@
 import CoreGraphics
 import Foundation
+
+nonisolated struct CandidateMeasurementNames: Sendable {
+    let candidate: CandidateFaceGeometryConfiguration
+
+    func landmark(_ id: String) -> String { candidate.landmarks.first { $0.id == id }?.displayName ?? id }
+    func region(_ id: String) -> String { candidate.regions.first { $0.id == id }?.displayName ?? id }
+    func landmarkPair(_ id: String) -> BilateralLandmarkPair? { candidate.bilateralLandmarkPairs.first { $0.id == id } }
+    func regionPair(_ id: String) -> BilateralRegionPair? { candidate.bilateralRegionPairs.first { $0.id == id } }
+}
 import simd
 
 nonisolated enum DraftPointChoice: Hashable, Identifiable, Sendable {
@@ -332,6 +341,24 @@ nonisolated struct FaceMeshVertexDisplacement: Equatable, Sendable {
     let euclideanMeters: Float
 
     var euclideanMillimeters: Float { euclideanMeters * 1_000 }
+}
+
+/// Display-only neutral-to-current research vector. Coordinates remain native face-local metres.
+nonisolated struct FaceMeshDisplacementOverlay: Equatable, Sendable {
+    let neutral: FaceMeshVertex
+    let current: FaceMeshVertex
+}
+
+/// Stable production accessibility contract for the Prompt 13 inspector workflow.
+nonisolated enum Prompt13AnalysisControl: String, CaseIterable, Sendable {
+    case configuration = "prompt13AnalysisConfiguration"
+    case bilateralLandmarkPairs = "bilateralLandmarkPairsSection"
+    case bilateralRegionPairs = "bilateralRegionPairsSection"
+    case scaleReference = "scaleReferenceSection"
+    case candidateConfiguration = "candidateConfigurationSection"
+    case neutralReference = "neutralReferenceSection"
+    case analysis = "analysisSection"
+    case exports = "prompt13ExportsSection"
 }
 
 nonisolated enum FaceMeshComparisonError: Error, Equatable, Sendable {

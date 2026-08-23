@@ -15,6 +15,7 @@ struct StoredFaceMeshSceneView: UIViewRepresentable {
     let selectedVertexIndex: Int?
     let regionVertexIndices: Set<Int>
     let draftConfiguration: ResearchFaceGeometryConfiguration?
+    let displacementOverlay: FaceMeshDisplacementOverlay?
     let preset: FaceMeshViewPreset
     let resetViewGeneration: Int
     let onSelection: (Int?) -> Void
@@ -122,6 +123,12 @@ struct StoredFaceMeshSceneView: UIViewRepresentable {
             for path in overlays.polylines { addPath(path.positions, color: .systemBlue, root: centered, radius: markerRadius * 0.25) }
             for plane in overlays.planes {
                 addPath(plane.positions + [plane.positions[0]], color: .systemPink, root: centered, radius: markerRadius * 0.28)
+            }
+            if let displacement = parent.displacementOverlay {
+                addMarker(at: SCNVector3(displacement.neutral.x, displacement.neutral.y, displacement.neutral.z),
+                          color: .systemGray, root: centered, radius: CGFloat(markerRadius * 1.1))
+                addPath([displacement.neutral, displacement.current], color: .systemOrange,
+                        root: centered, radius: markerRadius * 0.35)
             }
             for index in parent.regionVertexIndices where vertices.indices.contains(index) {
                 addMarker(at: vertices[index], color: .systemOrange, root: centered, radius: CGFloat(markerRadius))

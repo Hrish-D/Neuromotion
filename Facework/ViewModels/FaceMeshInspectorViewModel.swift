@@ -21,6 +21,13 @@ final class FaceMeshInspectorViewModel: ObservableObject {
     @Published var selectedSavedRegionID: String?
     @Published var showDraftGeometry = true
     @Published var geometryVertexChoices = Set<Int>()
+    @Published var bilateralLandmarkPairs: [BilateralLandmarkPair] = []
+    @Published var bilateralRegionPairs: [BilateralRegionPair] = []
+    @Published var selectedNeutralMeshFrameIDs = Set<UUID>()
+    @Published private(set) var candidate: CandidateFaceGeometryConfiguration?
+    @Published private(set) var neutralReference: FaceGeometryNeutralReference?
+    @Published private(set) var measurementPackage: FaceGeometryMeasurementPackage?
+    @Published private(set) var derivedExportURLs: [URL] = []
 
     private let folderURL: URL
     private let store = ResearchFaceGeometryStore()
@@ -71,6 +78,34 @@ final class FaceMeshInspectorViewModel: ObservableObject {
     var trajectory: [FaceMeshVertexTrajectorySample] {
         guard let selectedVertexIndex else { return [] }
         return FaceMeshComparison.trajectory(index: selectedVertexIndex, frames: availableFrames)
+    }
+    var neutralMeshCandidates: [RawFaceMeshFrame] {
+        allFrames.filter { $0.taskType == .neutralRest }.sorted { $0.sourceTimestamp < $1.sourceTimestamp }
+    }
+    var selectedFrameMeasurements: FaceGeometryFrameMeasurements? {
+        guard let id = selectedFrame?.id else { return nil }
+        return measurementPackage?.frames.first { $0.rawFaceMeshFrameID == id }
+    }
+    var selectedCandidateLandmarks: [FaceLandmarkDefinition] {
+        guard let selectedVertexIndex else { return [] }
+        return (candidate?.landmarks ?? []).filter { $0.source == .meshVertex(index: selectedVertexIndex) }
+    }
+    func selectCandidateLandmark(_ landmark: FaceLandmarkDefinition) {
+        guard case .meshVertex(let index) = landmark.source else { return }
+        selectedVertexIndex = index
+    }
+    func candidateLandmarkName(_ id: String) -> String { candidate.map(CandidateMeasurementNames.init)?.landmark(id) ?? id }
+    func candidateRegionName(_ id: String) -> String { candidate.map(CandidateMeasurementNames.init)?.region(id) ?? id }
+    func candidateLandmarkPair(_ id: String) -> BilateralLandmarkPair? { candidate.map(CandidateMeasurementNames.init)?.landmarkPair(id) }
+    func candidateRegionPair(_ id: String) -> BilateralRegionPair? { candidate.map(CandidateMeasurementNames.init)?.regionPair(id) }
+    var selectedDisplacementOverlay: FaceMeshDisplacementOverlay? {
+        guard let landmarkID = selectedCandidateLandmarks.first?.id,
+              let value = selectedFrameMeasurements?.landmarks.first(where: { $0.landmarkID == landmarkID }),
+              let baseline = value.baseline, let raw = value.raw else { return nil }
+        return FaceMeshDisplacementOverlay(
+            neutral: .init(x: Float(baseline.x), y: Float(baseline.y), z: Float(baseline.z)),
+            current: .init(x: Float(raw.x), y: Float(raw.y), z: Float(raw.z))
+        )
     }
     var pointChoices: [DraftPointChoice] {
         let landmarks = (draft?.landmarks ?? []).compactMap { landmark -> DraftPointChoice? in
@@ -136,7 +171,17 @@ final class FaceMeshInspectorViewModel: ObservableObject {
         selectedRepetition = availableRepetitions.first ?? 1
         selectedFrameIndex = availableFrames.first?.frameIndex ?? 0
         referenceFrameID = referenceCandidates.first?.id
-        draft = .empty(topologyID: loaded.topology.topologyID)
+        let draftURL = loaded.folderURL.appendingPathComponent(ResearchFaceGeometryStore.draftFileName)
+        draft = FileManager.default.fileExists(atPath: draftURL.path)
+            ? (try? store.importDraft(from: draftURL, for: loaded)) : nil
+        if draft == nil { draft = .empty(topologyID: loaded.topology.topologyID) }
+        let candidateURL = loaded.folderURL.appendingPathComponent(ResearchFaceGeometryStore.candidateFileName)
+        candidate = FileManager.default.fileExists(atPath: candidateURL.path)
+            ? try? store.importCandidate(from: candidateURL, for: loaded) : nil
+        if let candidate {
+            bilateralLandmarkPairs = candidate.bilateralLandmarkPairs
+            bilateralRegionPairs = candidate.bilateralRegionPairs
+        }
     }
 
     func selectTask(_ task: TaskType) {
@@ -193,6 +238,17 @@ final class FaceMeshInspectorViewModel: ObservableObject {
                                                       vertexIndices: regionSelection.sorted(), side: side,
                                                       notes: notes.nilIfBlank))
         }) { regionSelection.removeAll() }
+    }
+
+    func updateDraftRegionSide(id: String, side: FaceSubjectSide) {
+        _ = mutateDraft { draft in
+            guard let index = draft.regions.firstIndex(where: { $0.id == id }) else { return }
+            let region = draft.regions[index]
+            draft.regions[index] = FaceRegionDefinition(
+                id: region.id, displayName: region.displayName, vertexIndices: region.vertexIndices,
+                side: side, notes: region.notes
+            )
+        }
     }
 
     func addLine(name: String) {
@@ -254,6 +310,91 @@ final class FaceMeshInspectorViewModel: ObservableObject {
     func deletePolyline(id: String) { _ = mutateDraft { $0.polylines.removeAll { $0.id == id } } }
     func deletePlane(id: String) { _ = mutateDraft { $0.planes.removeAll { $0.id == id } } }
 
+    func addBilateralLandmarkPair(name: String, leftID: String, rightID: String) {
+        guard let draft, let topology else { return }
+        let pair = BilateralLandmarkPair(id: UUID().uuidString, displayName: normalizedName(name, fallback: "Research Landmark Pair"),
+                                         subjectLeftLandmarkID: leftID, subjectRightLandmarkID: rightID, notes: nil)
+        switch Prompt13PairWorkspace.addingLandmarkPair(pair, to: bilateralLandmarkPairs, regionPairs: bilateralRegionPairs,
+                                                        draft: draft, topology: topology, frame: selectedFrame) {
+        case .success(let pairs): bilateralLandmarkPairs = pairs; message = nil
+        case .failure(let error): message = "Research pairing requires correction: \(error)"
+        }
+    }
+    func deleteBilateralLandmarkPair(id: String) { bilateralLandmarkPairs.removeAll { $0.id == id } }
+    func deleteBilateralRegionPair(id: String) { bilateralRegionPairs.removeAll { $0.id == id } }
+    func addBilateralRegionPair(name: String, leftID: String, rightID: String) {
+        guard let draft, let topology else { return }
+        let pair = BilateralRegionPair(id: UUID().uuidString, displayName: normalizedName(name, fallback: "Research Region Pair"),
+                                       subjectLeftRegionID: leftID, subjectRightRegionID: rightID, notes: nil)
+        switch Prompt13PairWorkspace.addingRegionPair(pair, to: bilateralRegionPairs, landmarkPairs: bilateralLandmarkPairs,
+                                                      draft: draft, topology: topology, frame: selectedFrame) {
+        case .success(let pairs): bilateralRegionPairs = pairs; message = nil
+        case .failure(let error): message = "Research pairing requires correction: \(error)"
+        }
+    }
+    func toggleNeutralFrame(_ id: UUID) {
+        if !selectedNeutralMeshFrameIDs.insert(id).inserted { selectedNeutralMeshFrameIDs.remove(id) }
+        neutralReference = nil
+        measurementPackage = nil
+    }
+    func freezeCandidate(scaleReferenceLineID: String? = nil) {
+        guard let draft, let topology else { return }
+        let value = CandidateFaceGeometryConfiguration.freeze(
+            draft: draft, bilateralLandmarkPairs: bilateralLandmarkPairs,
+            bilateralRegionPairs: bilateralRegionPairs, scaleReferenceLineID: scaleReferenceLineID
+        )
+        let issues = CandidateConfigurationValidator.validate(value, topology: topology, frame: selectedFrame)
+        guard issues.isEmpty else { message = "Candidate validation failed: \(issues)"; return }
+        candidate = value
+        neutralReference = nil
+        measurementPackage = nil
+        selectedNeutralMeshFrameIDs.removeAll()
+        message = "Candidate frozen for research review. Draft remains editable and independent."
+        if let session { _ = try? store.exportCandidate(value, for: session) }
+    }
+    func createNeutralReference() {
+        guard let session, let candidate else { message = "Freeze a candidate configuration first."; return }
+        guard let reference = FaceGeometryMeasurementEngine().buildNeutralReference(
+            session: session, candidate: candidate, selectedMeshFrameIDs: selectedNeutralMeshFrameIDs
+        ) else { message = "Neutral reference unavailable. Select eligible frames from the final successful neutral attempt."; return }
+        neutralReference = reference
+        measurementPackage = nil
+        message = "Neutral reference created from \(reference.neutralFrameCount) explicitly selected frames."
+    }
+    func analyzeCandidate() {
+        guard let session, let candidate else { message = "Freeze a candidate configuration first."; return }
+        guard neutralReference != nil else { message = "Create the neutral reference before analysis."; return }
+        switch FaceGeometryMeasurementEngine().analyze(session: session, candidate: candidate,
+                                                        selectedNeutralMeshFrameIDs: selectedNeutralMeshFrameIDs) {
+        case .success(let package):
+            measurementPackage = package
+            derivedExportURLs = (try? store.exportMeasurements(package, for: session)) ?? []
+            message = "Offline research analysis complete: \(package.frames.count) mesh frames."
+        case .failure(let error): message = "Analysis unavailable: \(error)."
+        }
+    }
+
+    func exportCandidateArtifact() -> URL? {
+        guard let session, let candidate else { message = "No frozen candidate is available."; return nil }
+        do { let url = try store.exportCandidate(candidate, for: session); message = "Candidate configuration exported."; return url }
+        catch { message = "Candidate export failed: \(error)"; return nil }
+    }
+    func exportNeutralReferenceArtifact() -> URL? {
+        guard let session, let neutralReference else { message = "Create a neutral reference first."; return nil }
+        do { let url = try store.exportNeutralReference(neutralReference, for: session); message = "Neutral reference exported."; return url }
+        catch { message = "Neutral-reference export failed: \(error)"; return nil }
+    }
+    func exportMeasurementRecordsArtifact() -> URL? {
+        guard let session, let measurementPackage else { message = "Run analysis first."; return nil }
+        do { let url = try store.exportMeasurementRecords(measurementPackage, for: session); message = "Measurement records exported."; return url }
+        catch { message = "Measurement export failed: \(error)"; return nil }
+    }
+    func exportMeasurementSummaryArtifact() -> URL? {
+        guard let session, let measurementPackage else { message = "Run analysis first."; return nil }
+        do { let url = try store.exportMeasurementSummary(measurementPackage, for: session); message = "Measurement summary exported."; return url }
+        catch { message = "Measurement-summary export failed: \(error)"; return nil }
+    }
+
     func exportDraft() {
         guard let session, let draft else { return }
         do {
@@ -286,6 +427,7 @@ final class FaceMeshInspectorViewModel: ObservableObject {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? fallback : trimmed
     }
+
 }
 
 private extension Optional where Wrapped == String {

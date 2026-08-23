@@ -209,7 +209,7 @@ final class FaceMeshInspectionTests: XCTestCase {
         let config = configuration()
         XCTAssertEqual(config.status, .draft)
         XCTAssertEqual(ResearchDataVersions.current.rawDataSchemaVersion, "4.0.0")
-        XCTAssertEqual(ResearchDataVersions.current.analysisAlgorithmVersion, "0.3.0")
+        XCTAssertEqual(ResearchDataVersions.current.analysisAlgorithmVersion, "0.4.0")
         XCTAssertEqual(ResearchDataVersions.current.captureProtocolVersion, "0.4.0")
         XCTAssertEqual(ResearchDataVersions.current.meshCaptureVersion, "1.0.0")
         XCTAssertEqual(ResearchDataVersions.current.landmarkConfigurationVersion, "not-active")

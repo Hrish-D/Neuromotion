@@ -49,6 +49,26 @@ final class ResearchFaceGeometryStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: metadataURL), before)
     }
 
+    func testCandidateRoundTripAndDerivedExportDoNotRewriteSourceMetadata() throws {
+        let fixture = try makeStoredSession()
+        let store = ResearchFaceGeometryStore()
+        let session = try store.loadSession(at: fixture.directory.url)
+        let metadataURL = fixture.directory.url.appendingPathComponent("metadata.json")
+        let rawURL = fixture.directory.url.appendingPathComponent(SessionStore.rawFaceMeshFramesFileName)
+        let metadataBefore = try Data(contentsOf: metadataURL)
+        let rawBefore = try Data(contentsOf: rawURL)
+        let draft = ResearchFaceGeometryConfiguration.empty(topologyID: session.topology.topologyID)
+        let candidate = CandidateFaceGeometryConfiguration.freeze(
+            draft: draft, configurationID: "candidate", createdAt: Date(timeIntervalSince1970: 1),
+            bilateralLandmarkPairs: [], bilateralRegionPairs: []
+        )
+        let url = try store.exportCandidate(candidate, for: session)
+        XCTAssertEqual(try store.importCandidate(from: url, for: session), candidate)
+        XCTAssertEqual(try Data(contentsOf: metadataURL), metadataBefore)
+        XCTAssertEqual(try Data(contentsOf: rawURL), rawBefore)
+        XCTAssertEqual(session.metadata.analysisAlgorithmVersion, "0.3.0")
+    }
+
     private func makeStoredSession() throws -> (directory: TemporaryDirectory, topology: FaceMeshTopology) {
         let directory = try TemporaryDirectory(testName: UUID().uuidString)
         let topology = FaceMeshTopology(vertexCount: 4, triangleCount: 2, triangleIndices: [0, 1, 2, 0, 2, 3],

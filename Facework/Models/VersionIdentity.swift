@@ -46,7 +46,7 @@ struct ResearchDataVersions: Codable, Equatable {
 
     static let current = ResearchDataVersions(
         rawDataSchemaVersion: "4.0.0",
-        analysisAlgorithmVersion: "0.3.0",
+        analysisAlgorithmVersion: "0.4.0",
         captureProtocolVersion: "0.4.0",
         meshCaptureVersion: "1.0.0",
         landmarkConfigurationVersion: "not-active"

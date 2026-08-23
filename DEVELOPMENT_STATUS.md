@@ -377,9 +377,149 @@ Use synthetic or consenting non-identifiable data during development. Exported
 participant sessions, research data, facial images, and local logs must remain
 outside version control.
 
+## Prompt 13 candidate geometry measurement engine
+
+Prompt 13 is implemented in code and awaits physical offline verification. It
+keeps immutable Prompt 11 raw meshes, editable Prompt 12 drafts, frozen research
+candidates, measurement definitions, and derived results as separate layers.
+Freezing creates a new `CandidateFaceGeometryConfiguration` with status
+`candidateForReview`, the required topology identity, source-draft provenance,
+explicit bilateral landmark/region pairs, an optional scale-reference line, and
+a deterministic SHA-256 hash of measurement-relevant content. Candidate labels
+remain researcher supplied; the app ships no anatomical vertex map and makes no
+clinical-validation claim.
+
+Offline analysis uses an explicitly selected set of mesh frames known by the
+researcher to belong to the final successful neutral attempt. This is necessary
+because historical Prompt 9 raw data preserve `isNeutralPhase` but not a durable
+calibration-attempt/success identifier. The engine never guesses across retries.
+For every required vertex it computes a component-wise median of the selected
+raw face-local coordinates. The median is deterministic and less sensitive to
+isolated outliers than a mean, but is a research estimator, not a clinically
+validated baseline. Neutral provenance records contributing mesh/raw UUIDs,
+source timestamps, count, span, missing/excluded counts, reasons, and sparse-data
+warnings. With no usable reference, analysis reports `missingNeutralReference`;
+it never substitutes zeros.
+
+All geometry calculations are pure, offline, and use `Double` derived math while
+leaving raw `Float` vertices unchanged. Coordinates remain ARKit face-local
+metres: +X is viewer-right/subject-left, +Y superior, and +Z anterior toward the
+viewer. Subject-left outward movement is +dx; subject-right outward movement is
+-dx; midline/unspecified outward movement is unavailable. Bilateral comparisons
+mirror only the right displacement's X component across the YZ plane.
+
+Frame results include raw/baseline/delta landmark coordinates, magnitude and
+subject-oriented components; bilateral magnitude difference, mirrored-vector
+mismatch, and bounded asymmetry when its denominator is nonzero; current,
+neutral, changed, percent, and optionally normalized line/polyline lengths;
+region current/neutral centroids, centroid vector/magnitude, RMS vertex motion,
+mean vertex magnitude, and maximum vertex magnitude; bilateral regional
+centroid/RMS differences and mirrored-vector mismatch without vertex-to-vertex
+correspondence; and plane normals, triangle areas, and unsigned orientation
+change. RMS captures deformation that can cancel in a centroid. Plane-normal
+sign is ignored for geometric orientation. None of these quantities is a
+clinical score.
+
+Every derived frame retains source session, recording, raw-frame, mesh-frame,
+timestamp, task/repetition/frame, topology, candidate ID/version/hash, neutral
+reference, measurement schema, and analysis-version provenance. Repetition
+summaries use exact stored timestamps and preserve individual measurement
+series. Task exports retain every repetition and deliberately omit a single
+aggregate across unlike units. Non-finite and unavailable quantities use
+explicit statuses/optional values; JSON never receives fabricated zero, NaN, or
+Infinity.
+
+Derived artifacts are separate from raw acquisition:
+`candidate_face_geometry_configuration.json`,
+`face_geometry_measurements.json`,
+`face_geometry_measurement_summary.json`, and
+`face_geometry_neutral_reference.json`. Draft and matching candidate artifacts
+reload in the stored-session inspector. The research UI adds side-aware pairing,
+optional scale selection, candidate freezing/review identity, explicit neutral
+frame selection, offline analysis/export, selected-frame landmark/bilateral/
+region inspection, and a display-only neutral-to-current vector. No AR session,
+raw capture, raw schema, capture protocol, mesh schema, existing movement metric,
+machine learning, virtual point, or clinical score was changed.
+
+Current identity is raw schema `4.0.0`, analysis algorithm `0.4.0`, capture
+protocol `0.4.0`, mesh capture `1.0.0`, and landmark configuration
+`not-active`. Derived face-geometry measurement schema is `1.0.0`. Historical
+Prompt 11/12 source metadata remains `0.3.0`; new Prompt 13 exports separately
+state measurement analysis `0.4.0`. A production clinician-validated landmark
+configuration still does not exist.
+
+Automated Prompt 13 verification now executes 251 unit tests: 249 pass, zero
+fail, and the same two simulator ARSession characterization tests skip. The 18
+focused measurement-engine tests and seven Prompt 13 workflow/reachability and
+region-side compatibility regressions pass, as do all six UI executions. A
+representative sequential synthetic workload containing 490 frames with 1,220
+stored vertices per frame completed in 0.019 seconds on the development host;
+this is development evidence, not a physical-iPhone runtime claim. The generic
+unsigned iOS build succeeds. Physical offline measurement verification remains
+required.
+
+Prompt 13 physical correction 1 remains pending focused device retest. The
+measurement engine and its model tests existed, but the physical inspector
+showed two correctly side-labelled landmarks while exposing only Prompt 12
+draft controls. The original Prompt 13 SwiftUI was a single collapsed
+`Candidate measurement configuration` disclosure nested inside the already
+long Prompt 12 card; candidate export happened implicitly during freeze and
+the other derived exports happened implicitly during analysis. There was no
+mesh-inspector UI reachability test, so the prior report overstated the
+physical workflow contract.
+
+The inspector now presents a separate `Prompt 13 Analysis Configuration` card
+after the Prompt 12 editor. Its independently reachable disclosures are
+Bilateral Landmark Pairs, Bilateral Region Pairs, Scale Reference, Candidate
+Configuration, Neutral Reference, Analysis, and Prompt 13 Analysis Exports.
+Pair builders show subject-side metadata and vertex/region context, remain
+available before freezing, list saved pairs, and support deletion/recreation.
+Candidate review shows draft/topology/count provenance before freezing and the
+frozen ID/version/hash/topology/source afterward. Neutral and analysis controls
+remain visible with explicit prerequisites; neutral creation records selected
+frame count/span/reference provenance. Each of the four Prompt 13 artifacts
+has a separate export action. This correction changes UI organization and
+workflow state only: raw acquisition, median baseline, bilateral/region/plane
+math, timestamps, hashing, schemas, and all scientific version values are
+unchanged. Prompt 13 is not physically complete.
+
+Prompt 13 physical correction 2 addresses the next device-discovered workflow
+blocker: draft regions stored side metadata, but the only side picker was placed
+in the landmark form and shared implicitly with region creation. The region form
+now has its own explicit `Region side` selector, saved-region rows show side and
+vertex count, and mutable draft regions can have side metadata corrected before
+candidate freezing. Bilateral region selectors continue to admit only explicit
+subject-left and subject-right regions; no coordinate, centroid, screen-position,
+or vertex-index inference is performed. Draft JSON with an explicit unspecified
+side remains unchanged, and a missing historical region-side key now decodes
+conservatively as `unspecified`. Candidate immutability, hashes, measurement
+mathematics, schemas, and scientific versions are unchanged. Focused physical
+region-side verification remains required.
+
+Prompt 13 physical correction 3 completes the candidate measurement inspector
+and repetition-summary coverage after physical/export audit. Frame JSON already
+contained bilateral-region results, but the on-device panel omitted them and
+used UUIDs as primary labels. The panel now resolves immutable candidate display
+names, exposes candidate-landmark raw/neutral/delta and subject-oriented values,
+and displays individual regions plus complete bilateral landmark and bilateral
+region quantities. Scientific IDs remain in the derived exports.
+
+Repetition summaries now retain all primary scalar identities: landmark
+magnitude; region centroid magnitude, RMS, mean magnitude, and maximum
+magnitude; bilateral landmark difference, mismatch, and asymmetry; bilateral
+region centroid difference, centroid mismatch, centroid asymmetry, RMS
+difference, and RMS asymmetry; line/polyline length change; and plane area and
+orientation change. Records remain present when every sample is unavailable.
+Units are deterministic from the metric identity: distance quantities are
+metres, region/plane area change is square metres, plane orientation is degrees,
+and asymmetry indices are dimensionless. Unlike units are never aggregated
+together. This completes the unreleased measurement schema `1.0.0`; equations,
+candidate hashes, raw data, and all scientific versions remain unchanged.
+
 ## Next implementation phase
 
-Clinician-reviewed candidate anatomical landmark configuration and regional measurement engine.
+Prompt 13 physical offline measurement verification, followed by a separately
+scoped clinician-review/reliability phase. Prompt 14 has not begun.
 
 Prompt 9 calibration/QC is complete in code pending physical retry
 verification. Zero eligible frames now fail; no zero or hard-invalid fallback

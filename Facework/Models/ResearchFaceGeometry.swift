@@ -40,6 +40,17 @@ nonisolated struct FaceRegionDefinition: Codable, Equatable, Identifiable, Senda
         self.side = side
         self.notes = notes
     }
+
+    private enum CodingKeys: String, CodingKey { case id, displayName, vertexIndices, side, notes }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        vertexIndices = try container.decode([Int].self, forKey: .vertexIndices)
+        side = try container.decodeIfPresent(FaceSubjectSide.self, forKey: .side) ?? .unspecified
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+    }
 }
 
 nonisolated struct FaceLineSegmentDefinition: Codable, Equatable, Identifiable, Sendable {
