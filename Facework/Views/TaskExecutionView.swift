@@ -15,6 +15,7 @@ struct TaskExecutionView: View {
     @State private var latestResult: RepetitionResult?
     @State private var observationCollector: FaceObservationCollector?
     @State private var captureTimer: Timer?
+    @State private var completionCueTrigger = RepetitionCompletionCueTrigger()
     
     let task: TaskType
 
@@ -193,6 +194,7 @@ struct TaskExecutionView: View {
                                                  peakSignalValue: peakCandidate?.signalValue)
                     latestResult = result
                     vm.store(repetition: result, frames: framesForRep)
+                    completionCueTrigger.handle(result)
 
                     if repIndex >= config.repetitionsRequired {
                         if vm.currentTaskIndex >= vm.tasks.count - 1 {
