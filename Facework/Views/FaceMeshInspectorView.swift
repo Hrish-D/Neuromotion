@@ -30,7 +30,7 @@ struct FaceMeshInspectorView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                FaceworkSectionHeader("Research Mesh Inspector", subtitle: "Draft research use only — no clinical mapping is active.")
+                FaceworkSectionHeader("Session & Face Mesh", subtitle: "Inspect a stored research session and its captured face mesh.")
                 if let session = viewModel.session, let topology = viewModel.topology {
                     metadataCard(session: session, topology: topology)
                     selectors
@@ -50,12 +50,14 @@ struct FaceMeshInspectorView: View {
                         selectedVertexCard
                         referenceAndTrajectory
                         draftControls
-                        prompt13AnalysisControls
+                        measurementSetupControls
+                        quantitativeAnalysisControls
                         candidateMeasurementPanel
+                        researchExportControls
                     }
                 } else {
                     ContentUnavailableView("Mesh Data Unavailable", systemImage: "point.3.connected.trianglepath.dotted",
-                                           description: Text(viewModel.message ?? "This session has no inspectable Prompt 11 mesh artifacts."))
+                                           description: Text(viewModel.message ?? "This session has no inspectable stored face-mesh artifacts."))
                 }
             }
             .padding()
@@ -182,7 +184,7 @@ struct FaceMeshInspectorView: View {
     private var draftControls: some View {
         FaceworkCard {
             VStack(alignment: .leading, spacing: 10) {
-                FaceworkSectionHeader("Draft research configuration", subtitle: "Manual labels do not imply anatomical or clinical validation.")
+                FaceworkSectionHeader("Research Geometry Configuration", subtitle: "Define generic research geometry. Manual labels do not imply anatomical or clinical validation.")
                 TextField("Research label", text: $landmarkName).textFieldStyle(.roundedBorder)
                 Picker("Landmark side", selection: $landmarkSide) { ForEach(FaceSubjectSide.allCases, id: \.self) { Text($0.displayName).tag($0) } }
                 TextField("Optional notes", text: $notes, axis: .vertical).textFieldStyle(.roundedBorder)
@@ -249,13 +251,11 @@ struct FaceMeshInspectorView: View {
         }
     }
 
-    private var prompt13AnalysisControls: some View {
+    private var measurementSetupControls: some View {
         FaceworkCard {
             VStack(alignment: .leading, spacing: 12) {
-                FaceworkSectionHeader("Prompt 13 Analysis Configuration", subtitle: "Research-only quantitative geometry analysis")
+                FaceworkSectionHeader("Measurement Setup", subtitle: "Pair bilateral geometry, freeze a candidate, and establish its neutral reference.")
                     .accessibilityIdentifier(Prompt13AnalysisControl.configuration.rawValue)
-                Text("These controls are separate from the Prompt 12 draft geometry builders.")
-                    .font(.caption).foregroundStyle(.secondary)
 
                 DisclosureGroup("Bilateral Landmark Pairs") {
                     Text(sideEligibilityText(kind: "landmarks", leftCount: subjectLeftLandmarks.count, rightCount: subjectRightLandmarks.count))
@@ -321,7 +321,7 @@ struct FaceMeshInspectorView: View {
                 }
                 .accessibilityIdentifier(Prompt13AnalysisControl.scaleReference.rawValue)
 
-                DisclosureGroup("Candidate Configuration") {
+                DisclosureGroup("Candidate Geometry Configuration") {
                     candidateDraftReview
             Button("Freeze as Candidate for Analysis") {
                 viewModel.freezeCandidate(scaleReferenceLineID: scaleReferenceLineID.isEmpty ? nil : scaleReferenceLineID)
@@ -356,8 +356,15 @@ struct FaceMeshInspectorView: View {
                     }
                 }
                 .accessibilityIdentifier(Prompt13AnalysisControl.neutralReference.rawValue)
+            }
+        }
+    }
 
-                DisclosureGroup("Analysis") {
+    private var quantitativeAnalysisControls: some View {
+        FaceworkCard {
+            VStack(alignment: .leading, spacing: 12) {
+                FaceworkSectionHeader("Quantitative Analysis", subtitle: "Run offline measurements using the frozen candidate and neutral reference.")
+                DisclosureGroup("Run Offline Analysis") {
                     Text(analysisReadinessText).font(.caption).foregroundStyle(.secondary)
                     Button("Analyze Candidate Geometry Offline") { viewModel.analyzeCandidate() }
                     .buttonStyle(FaceworkPrimaryButtonStyle())
@@ -369,8 +376,15 @@ struct FaceMeshInspectorView: View {
                     }
                 }
                 .accessibilityIdentifier(Prompt13AnalysisControl.analysis.rawValue)
+            }
+        }
+    }
 
-                DisclosureGroup("Prompt 13 Analysis Exports") {
+    private var researchExportControls: some View {
+        FaceworkCard {
+            VStack(alignment: .leading, spacing: 12) {
+                FaceworkSectionHeader("Research Exports", subtitle: "Export candidate, reference, measurement, and summary research artifacts.")
+                DisclosureGroup("Quantitative Analysis Exports") {
                     exportButton("Export Candidate Configuration", enabled: viewModel.candidate != nil) { viewModel.exportCandidateArtifact() }
                     exportButton("Export Neutral Reference", enabled: viewModel.neutralReference != nil) { viewModel.exportNeutralReferenceArtifact() }
                     exportButton("Export Geometry Measurements", enabled: viewModel.measurementPackage != nil) { viewModel.exportMeasurementRecordsArtifact() }
@@ -457,7 +471,7 @@ struct FaceMeshInspectorView: View {
         if let package = viewModel.measurementPackage {
             FaceworkCard {
                 VStack(alignment: .leading, spacing: 7) {
-                    FaceworkSectionHeader("Candidate geometry measurements", subtitle: "Derived research quantities; no clinical score or interpretation.")
+                    FaceworkSectionHeader("Quantitative Analysis Results", subtitle: "Derived research quantities; no clinical score or interpretation.")
                     Text("Neutral: \(package.neutralReference.neutralFrameCount) frames · \(String(format: "%.3f", package.neutralReference.neutralTimeSpanSeconds)) s")
                     Text("Reference: \(package.neutralReference.neutralReferenceID)").font(.caption2).textSelection(.enabled)
                     if let candidate = viewModel.candidate {
