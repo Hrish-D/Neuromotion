@@ -27,6 +27,4 @@ final class AppState: ObservableObject {
     
     @Published var saveValidationImages: Bool = true
     @Published var showFaceMeshOverlay: Bool = false
-    
-    @Published var demoPrivacyMode: Bool = false
 }

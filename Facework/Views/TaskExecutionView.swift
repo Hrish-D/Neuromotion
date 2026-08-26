@@ -25,34 +25,13 @@ struct TaskExecutionView: View {
             VStack(spacing: 16) {
                 FaceworkSectionHeader(task.displayName, subtitle: "Complete each repetition steadily and comfortably.")
                 
-                Toggle("Demo Mode", isOn: $appState.demoPrivacyMode)
-
                 if let vm = captureVM {
-                    if appState.demoPrivacyMode {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.15))
-                            .frame(height: 280)
-                            .overlay(
-                                VStack(spacing: 10) {
-                                    Image(systemName: "faceid")
-                                        .font(.largeTitle)
-
-                                    Text("Face tracking active")
-                                        .font(.headline)
-
-                                    Text("Camera preview hidden for privacy")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
-                            )
-                    } else {
-                        FaceTrackingViewRepresentable(
-                            trackingManager: vm.trackingManager,
-                            showMeshOverlay: appState.showFaceMeshOverlay
-                        )
-                        .frame(height: 280)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
+                    FaceTrackingViewRepresentable(
+                        trackingManager: vm.trackingManager,
+                        showMeshOverlay: appState.showFaceMeshOverlay
+                    )
+                    .frame(height: 280)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     
                     Toggle("Show live face mesh", isOn: $appState.showFaceMeshOverlay)
                         .font(.subheadline)
