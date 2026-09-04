@@ -98,6 +98,20 @@ final class CaptureSessionViewModel: ObservableObject {
         faceMeshAccumulator.record(rawFrame: rawFrame, snapshot: snapshot)
     }
 
+    func abortExpressionRecording(recordingID: UUID, temporaryFrames: [FrameCapture]) {
+        let abortedFrames = temporaryFrames.filter { $0.raw.recordingID == recordingID }
+        let imagePaths = Set(abortedFrames.compactMap(\.raw.validationImageReference))
+
+        allFrames = faceMeshAccumulator.removingRecords(
+            recordingID: recordingID,
+            from: allFrames
+        )
+
+        for path in imagePaths {
+            try? FileManager.default.removeItem(atPath: path)
+        }
+    }
+
     func moveToNextTask() {
         currentTaskIndex += 1
     }

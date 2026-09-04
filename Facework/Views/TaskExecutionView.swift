@@ -14,6 +14,7 @@ struct TaskExecutionView: View {
     @State private var holdCountdown: Double = 0
     @State private var latestResult: RepetitionResult?
     @State private var observationCollector: FaceObservationCollector?
+    @State private var activeRecordingID: UUID?
     @State private var captureTimer: Timer?
     @State private var completionCueTrigger = RepetitionCompletionCueTrigger()
     
@@ -69,8 +70,7 @@ struct TaskExecutionView: View {
                         .disabled(isCapturing)
 
                         Button("Reset Rep") {
-                            stopCapture()
-                            isCapturing = false
+                            abortCapture(using: vm)
                             taskVM.resetForNextRep()
                             latestResult = nil
                         }
@@ -89,7 +89,11 @@ struct TaskExecutionView: View {
             captureVM?.startTracking()
         }
         .onDisappear {
-            stopCapture()
+            if let vm = captureVM {
+                abortCapture(using: vm)
+            } else {
+                stopCapture()
+            }
             captureVM?.stopTracking()
         }
     }
@@ -132,7 +136,7 @@ struct TaskExecutionView: View {
             cameraTrackingState: { vm.trackingManager.trackingStateDescription }
         )
         observationCollector = collector
-        collector.start(mode: .task(task: task, repetitionIndex: repIndex)) { collectedObservation in
+        activeRecordingID = collector.start(mode: .task(task: task, repetitionIndex: repIndex)) { collectedObservation in
             let nextFrameIndex = taskVM.nextFrameIndex
             let validationImageAssociation: ValidationImageAssociation?
 
@@ -194,6 +198,7 @@ struct TaskExecutionView: View {
                                                  peakSignalValue: peakCandidate?.signalValue)
                     latestResult = result
                     vm.store(repetition: result, frames: framesForRep)
+                    activeRecordingID = nil
                     completionCueTrigger.handle(result)
 
                     if repIndex >= config.repetitionsRequired {
@@ -225,5 +230,16 @@ struct TaskExecutionView: View {
         observationCollector = nil
         captureTimer?.invalidate()
         captureTimer = nil
+    }
+
+    private func abortCapture(using vm: CaptureSessionViewModel) {
+        stopCapture()
+        isCapturing = false
+        guard let activeRecordingID else { return }
+        vm.abortExpressionRecording(
+            recordingID: activeRecordingID,
+            temporaryFrames: taskVM.captureFrames
+        )
+        self.activeRecordingID = nil
     }
 }

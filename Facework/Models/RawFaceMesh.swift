@@ -193,6 +193,15 @@ struct FaceMeshSessionAccumulator {
         ))
     }
 
+    mutating func removingRecords(
+        recordingID: UUID,
+        from rawFrames: [FrameCapture]
+    ) -> [FrameCapture] {
+        frames.removeAll { $0.recordingID == recordingID }
+        unavailableFrames.removeAll { $0.recordingID == recordingID }
+        return rawFrames.filter { $0.raw.recordingID != recordingID }
+    }
+
     private mutating func recordUnavailable(
         rawFrame: RawFrameCapture,
         reason: RawFaceMeshAvailability,
